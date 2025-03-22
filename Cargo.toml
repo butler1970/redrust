@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-reqwest = { version = "0.11", features = ["json"] }
+reqwest = { version = "0.11", features = ["json", "rustls-tls"], default-features = false }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1", features = ["full"] }
@@ -14,3 +14,8 @@ env_logger = "0.9"
 clap = { version = "4.5.31", features = ["derive"] }
 chrono = "0.4.40"
 chrono-tz = "0.10.1"
+# Dependencies for OAuth flow
+webbrowser = "0.8.12"  # For opening the browser
+tiny_http = "0.12"     # For the localhost callback server
+url = "2.5.0"          # For URL parsing
+rand = "0.8.5"         # For generating state token
