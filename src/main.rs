@@ -28,6 +28,15 @@ enum Commands {
         /// If not provided, posts from the public Reddit frontpage will be retrieved.
         #[arg(long, short, help = "Subreddit name (optional)", required = false)]
         subreddit: Option<String>,
+
+        /// Display posts in a brief, one-line format.
+        #[arg(
+            long,
+            short,
+            help = "Show posts in a brief one-line format",
+            required = false
+        )]
+        brief: bool,
     },
 
     /// Command to create a new post in a subreddit.
@@ -179,7 +188,11 @@ async fn main() {
     let cli = Cli::parse();
 
     match &cli.command {
-        Commands::Posts { subreddit, count } => {
+        Commands::Posts {
+            subreddit,
+            count,
+            brief,
+        } => {
             // Use a more descriptive user agent to avoid filtering
             let client = RedditClient::with_user_agent(
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36 redrust/1.0 (by /u/Aggravating-Fix-3871)".to_string()
@@ -206,17 +219,118 @@ async fn main() {
 
                     println!("Found {} posts", response.data.children.len());
 
-                    for post in response.data.children {
-                        let local_time = DateTime::from_timestamp(post.data.created_utc as i64, 0)
-                            .unwrap()
-                            .with_timezone(&Los_Angeles);
-                        let timestamp_str = local_time.format("%Y-%m-%d %H:%M:%S").to_string();
+                    if *brief {
+                        // Brief one-line format with simplified type indicators
+                        for (i, post) in response.data.children.iter().enumerate() {
+                            let local_time =
+                                DateTime::from_timestamp(post.data.created_utc as i64, 0)
+                                    .unwrap()
+                                    .with_timezone(&Los_Angeles);
+                            let timestamp_str = local_time.format("%H:%M").to_string();
 
-                        // Display post with more details
-                        println!("\n============ POST =============");
-                        println!("[{}] [Los Angeles time]", timestamp_str);
-                        println!("{}", post.data.format_summary());
-                        println!("================================\n");
+                            // Determine post type indicator with a single character
+                            let (post_type, _type_code) = if post.data.is_self {
+                                ("T", "Text") // Text post
+                            } else if post.data.is_video {
+                                ("V", "Video") // Video
+                            } else if post.data.url.contains("i.redd.it")
+                                || post.data.url.contains("imgur.com")
+                            {
+                                ("I", "Image") // Image
+                            } else if post.data.url.contains("reddit.com/gallery") {
+                                ("G", "Gallery") // Gallery
+                            } else {
+                                ("L", "Link") // Link
+                            };
+
+                            // Truncate the title if necessary (30 chars), safely handling UTF-8
+                            let title = if post.data.title.chars().count() > 30 {
+                                let mut chars =
+                                    post.data.title.chars().take(27).collect::<String>();
+                                chars.push_str("...");
+                                chars
+                            } else {
+                                post.data.title.clone()
+                            };
+
+                            // Get content excerpt or URL
+                            let content = if post.data.is_self {
+                                // For text posts, get a brief excerpt
+                                let text = post.data.selftext.trim();
+                                if text.is_empty() {
+                                    "[No content]".to_string()
+                                } else if text.chars().count() > 30 {
+                                    let excerpt = text
+                                        .chars()
+                                        .take(27)
+                                        .collect::<String>()
+                                        .replace('\n', " ");
+                                    format!("\"{}...\"", excerpt)
+                                } else {
+                                    format!("\"{}\"", text.replace('\n', " "))
+                                }
+                            } else {
+                                // For non-text posts, get the URL (could be hyperlinked in some terminals)
+                                // Note: Basic terminal support for hyperlinks uses this format: \x1B]8;;url\x07text\x1B]8;;\x07
+                                // But not all terminals support this, so we'll just show a simplified URL
+                                let url_display = if post.data.url.len() > 30 {
+                                    let shortened_url = if post.data.url.starts_with("https://") {
+                                        post.data.url[8..].to_string() // Remove https:// for display
+                                    } else if post.data.url.starts_with("http://") {
+                                        post.data.url[7..].to_string() // Remove http:// for display
+                                    } else {
+                                        post.data.url.clone()
+                                    };
+
+                                    if shortened_url.len() > 30 {
+                                        format!("{:.27}...", shortened_url)
+                                    } else {
+                                        shortened_url
+                                    }
+                                } else {
+                                    post.data.url.clone()
+                                };
+
+                                url_display
+                            };
+
+                            // Construct permalink URL
+                            let permalink = format!("https://reddit.com{}", post.data.permalink);
+
+                            println!(
+                                "{:2}. [{}] [{}] {} ({}) r/{} | {}",
+                                i + 1,
+                                post_type,
+                                timestamp_str,
+                                title,
+                                content,
+                                post.data.subreddit,
+                                permalink
+                            );
+                        }
+
+                        // Print a legend for the post type indicators
+                        println!("\nPost Type Legend:");
+                        println!("[T] = Text post");
+                        println!("[V] = Video");
+                        println!("[I] = Image");
+                        println!("[G] = Gallery");
+                        println!("[L] = Link");
+                    } else {
+                        // Detailed format
+                        for post in response.data.children {
+                            let local_time =
+                                DateTime::from_timestamp(post.data.created_utc as i64, 0)
+                                    .unwrap()
+                                    .with_timezone(&Los_Angeles);
+                            let timestamp_str = local_time.format("%Y-%m-%d %H:%M:%S").to_string();
+
+                            // Display post with more details
+                            println!("\n============ POST =============");
+                            println!("[{}] [Los Angeles time]", timestamp_str);
+                            println!("{}", post.data.format_summary());
+                            println!("================================\n");
+                        }
                     }
                 }
                 Err(err) => error!("Error fetching posts: {:?}", err),
