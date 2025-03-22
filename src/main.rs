@@ -1,15 +1,15 @@
 use chrono::DateTime;
 use chrono_tz::America::Los_Angeles;
-use log::{info, error};
-use redrust::client::RedditClient;
 use clap::Parser;
+use log::{error, info};
+use redrust::client::RedditClient;
 
 #[derive(Parser, Debug)]
 #[command(
     name = "redrust",
     author = "Robert Butler",
     version = "1.0",
-    about = "Rust wrapper for the Reddit API.",
+    about = "Rust wrapper for the Reddit API."
 )]
 struct Cli {
     #[command(subcommand)]
@@ -18,36 +18,38 @@ struct Cli {
 
 #[derive(clap::Subcommand, Debug)]
 enum Commands {
-    /// Command to fetch posts from a subreddit.
+    /// Command to fetch posts from a subreddit or the public frontpage.
     Posts {
-        /// The name of the subreddit to manage.
-        #[arg(help = "Subreddit name", required = true)]
-        subreddit: String,
-
-        #[arg(help = "Number of posts to retrieve", required = true)]
+        /// The number of posts to retrieve.
+        #[arg(long, short, help = "Number of posts to retrieve", required = true)]
         count: i32,
+
+        /// The name of the subreddit to fetch posts from.
+        /// If not provided, posts from the public Reddit frontpage will be retrieved.
+        #[arg(long, short, help = "Subreddit name (optional)", required = false)]
+        subreddit: Option<String>,
     },
-    
-    /// Command to create a new post in a subreddit. 
+
+    /// Command to create a new post in a subreddit.
     /// Requires app-only authentication which won't allow posting.
     Create {
         /// The name of the subreddit to post to.
         #[arg(help = "Subreddit name", required = true)]
         subreddit: String,
-        
+
         /// Title of the post.
         #[arg(help = "Post title", required = true)]
         title: String,
-        
+
         /// Text content of the post.
         #[arg(help = "Post text content", required = true)]
         text: String,
-        
+
         /// Your Reddit client ID.
         #[arg(help = "Reddit client ID for OAuth", required = true)]
         client_id: String,
     },
-    
+
     /// Create a post using user authentication (username/password).
     /// For this to work, your app must be registered as a "script" type app.
     /// NOTE: This won't work for accounts that use Google OAuth login.
@@ -55,28 +57,28 @@ enum Commands {
         /// The name of the subreddit to post to.
         #[arg(help = "Subreddit name", required = true)]
         subreddit: String,
-        
+
         /// Title of the post.
         #[arg(help = "Post title", required = true)]
         title: String,
-        
+
         /// Text content of the post.
         #[arg(help = "Post text content", required = true)]
         text: String,
-        
+
         /// Your Reddit client ID.
         #[arg(help = "Reddit client ID for OAuth", required = true)]
         client_id: String,
-        
+
         /// Reddit username.
         #[arg(help = "Reddit username", required = true)]
         username: String,
-        
+
         /// Reddit password.
         #[arg(help = "Reddit password", required = true)]
         password: String,
     },
-    
+
     /// Create a post using browser-based OAuth authentication.
     /// RECOMMENDED for accounts using Google OAuth login.
     /// Requires creating an installed app in Reddit preferences first.
@@ -84,24 +86,24 @@ enum Commands {
         /// The name of the subreddit to post to.
         #[arg(help = "Subreddit name", required = true)]
         subreddit: String,
-        
+
         /// Title of the post.
         #[arg(help = "Post title", required = true)]
         title: String,
-        
+
         /// Text content of the post.
         #[arg(help = "Post text content", required = true)]
         text: String,
-        
+
         /// Your Reddit API client ID.
         #[arg(help = "Client ID from your Reddit installed app", required = true)]
         client_id: String,
-        
+
         /// Port to use for the localhost callback (default: 8080).
         #[arg(help = "Port to use for the OAuth callback", required = false)]
         port: Option<u16>,
     },
-    
+
     /// Create a post using manual tokens (for headless environments).
     /// Use this when you have obtained tokens separately and want to use
     /// them without browser authentication.
@@ -109,32 +111,32 @@ enum Commands {
         /// The name of the subreddit to post to.
         #[arg(help = "Subreddit name", required = true)]
         subreddit: String,
-        
+
         /// Title of the post.
         #[arg(help = "Post title", required = true)]
         title: String,
-        
+
         /// Text content of the post.
         #[arg(help = "Post text content", required = true)]
         text: String,
-        
+
         /// Your Reddit API client ID.
         #[arg(help = "Client ID from your Reddit app", required = true)]
         client_id: String,
-        
+
         /// The access token obtained from Reddit OAuth.
         #[arg(help = "OAuth access token", required = true)]
         access_token: String,
-        
+
         /// The refresh token obtained from Reddit OAuth (if available).
         #[arg(help = "OAuth refresh token", required = false)]
         refresh_token: Option<String>,
-        
+
         /// Time in seconds until the access token expires.
         #[arg(help = "Token expiration time in seconds", default_value = "3600")]
         expires_in: u64,
     },
-    
+
     /// Create a post using a script application's API credentials.
     /// Works with any Reddit account (including Google OAuth logins).
     /// Requires creating a script app in Reddit preferences first.
@@ -142,27 +144,27 @@ enum Commands {
         /// The name of the subreddit to post to.
         #[arg(help = "Subreddit name", required = true)]
         subreddit: String,
-        
+
         /// Title of the post.
         #[arg(help = "Post title", required = true)]
         title: String,
-        
+
         /// Text content of the post.
         #[arg(help = "Post text content", required = true)]
         text: String,
-        
+
         /// Your Reddit API client ID.
         #[arg(help = "Client ID from your Reddit script app", required = true)]
         client_id: String,
-        
+
         /// Your Reddit API client secret.
         #[arg(help = "Client secret from your Reddit script app", required = true)]
         client_secret: String,
-        
+
         /// Your Reddit username.
         #[arg(help = "Your Reddit username", required = true)]
         username: String,
-        
+
         /// Your Reddit password.
         #[arg(help = "Your Reddit password", required = true)]
         password: String,
@@ -178,23 +180,54 @@ async fn main() {
 
     match &cli.command {
         Commands::Posts { subreddit, count } => {
-            info!("Gathering new posts from r/{}", subreddit);
-            
-            let client = RedditClient::new();
+            // Use a more descriptive user agent to avoid filtering
+            let client = RedditClient::with_user_agent(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36 redrust/1.0 (by /u/Aggravating-Fix-3871)".to_string()
+            );
 
-            match client.fetch_new_posts(subreddit, *count).await {
+            // Fetch posts from either a specific subreddit or the public frontpage
+            let posts_result = match subreddit {
+                Some(sub) => {
+                    info!("Gathering new posts from r/{}", sub);
+                    client.fetch_new_posts(sub, *count).await
+                }
+                None => {
+                    info!("Gathering new posts from the public Reddit frontpage");
+                    client.fetch_public_new_posts(*count).await
+                }
+            };
+
+            match posts_result {
                 Ok(response) => {
+                    if response.data.children.is_empty() {
+                        println!("No posts found.");
+                        return;
+                    }
+
+                    println!("Found {} posts", response.data.children.len());
+
                     for post in response.data.children {
-                        let timestamp: i64 = post.data.created_utc as i64;
-                        let timestamp = DateTime::from_timestamp(timestamp, 0).unwrap().with_timezone(&Los_Angeles);
-                        let timestamp_str = timestamp.format("%Y-%m-%d %H:%M:%S").to_string();
-                        info!("[{}] {} by {}", timestamp_str, post.data.title, post.data.author);
+                        let local_time = DateTime::from_timestamp(post.data.created_utc as i64, 0)
+                            .unwrap()
+                            .with_timezone(&Los_Angeles);
+                        let timestamp_str = local_time.format("%Y-%m-%d %H:%M:%S").to_string();
+
+                        // Display post with more details
+                        println!("\n============ POST =============");
+                        println!("[{}] [Los Angeles time]", timestamp_str);
+                        println!("{}", post.data.format_summary());
+                        println!("================================\n");
                     }
                 }
                 Err(err) => error!("Error fetching posts: {:?}", err),
             }
-        },
-        Commands::Create { subreddit, title, text, client_id } => {
+        }
+        Commands::Create {
+            subreddit,
+            title,
+            text,
+            client_id,
+        } => {
             // Handle subreddit format - don't add r/ if it's already there
             let display_sub = if subreddit.starts_with("r/") {
                 subreddit.to_string()
@@ -202,9 +235,9 @@ async fn main() {
                 format!("r/{}", subreddit)
             };
             info!("Creating a new post in {}: '{}'", display_sub, title);
-            
+
             let mut client = RedditClient::new();
-            
+
             // First get an access token
             match client.get_access_token(client_id).await {
                 Ok(_) => info!("Successfully authenticated with Reddit API"),
@@ -213,125 +246,193 @@ async fn main() {
                     return;
                 }
             }
-            
+
             // Now create the post
             match client.create_post(subreddit, title, text).await {
                 Ok(url) => info!("Post created successfully! URL: {}", url),
                 Err(err) => error!("Error creating post: {:?}", err),
             }
-        },
-        Commands::BrowserCreate { subreddit, title, text, client_id, port } => {
+        }
+        Commands::BrowserCreate {
+            subreddit,
+            title,
+            text,
+            client_id,
+            port,
+        } => {
             // Handle subreddit format - don't add r/ if it's already there
             let display_sub = if subreddit.starts_with("r/") {
                 subreddit.to_string()
             } else {
                 format!("r/{}", subreddit)
             };
-            info!("Creating a new post in {} via browser authentication: '{}'", display_sub, title);
-            
+            info!(
+                "Creating a new post in {} via browser authentication: '{}'",
+                display_sub, title
+            );
+
             // Use stored tokens if available
             let mut client = RedditClient::with_stored_tokens(client_id);
-            
+
             // Try to authenticate with stored tokens first, falling back to browser OAuth
             info!("Checking for stored OAuth tokens...");
-            
-            match client.authenticate_with_stored_or_browser(client_id, *port, Some("identity submit read")).await {
+
+            match client
+                .authenticate_with_stored_or_browser(client_id, *port, Some("identity submit read"))
+                .await
+            {
                 Ok(_) => {
-                    if client.token_storage.as_ref().map_or(false, |s| s.is_access_token_valid()) {
+                    if client
+                        .token_storage
+                        .as_ref()
+                        .map_or(false, |s| s.is_access_token_valid())
+                    {
                         info!("Using existing OAuth token (no browser login required)");
-                    } else if client.token_storage.as_ref().map_or(false, |s| s.has_refresh_token()) {
+                    } else if client
+                        .token_storage
+                        .as_ref()
+                        .map_or(false, |s| s.has_refresh_token())
+                    {
                         info!("Successfully refreshed OAuth token (no browser login required)");
                     } else {
                         info!("Successfully authenticated with Reddit API via browser");
                     }
-                },
+                }
                 Err(err) => {
                     error!("Failed to authenticate with Reddit API: {:?}", err);
                     return;
                 }
             }
-            
+
             // Now create the post
             info!("Authentication successful! Creating post...");
             match client.create_post(subreddit, title, text).await {
                 Ok(url) => info!("Post created successfully! URL: {}", url),
                 Err(err) => error!("Error creating post: {:?}", err),
             }
-        },
-        Commands::TokenCreate { subreddit, title, text, client_id, access_token, refresh_token, expires_in } => {
+        }
+        Commands::TokenCreate {
+            subreddit,
+            title,
+            text,
+            client_id,
+            access_token,
+            refresh_token,
+            expires_in,
+        } => {
             // Handle subreddit format - don't add r/ if it's already there
             let display_sub = if subreddit.starts_with("r/") {
                 subreddit.to_string()
             } else {
                 format!("r/{}", subreddit)
             };
-            info!("Creating a new post in {} using provided token: '{}'", display_sub, title);
-            
+            info!(
+                "Creating a new post in {} using provided token: '{}'",
+                display_sub, title
+            );
+
             // Create a client and set the tokens
             let mut client = RedditClient::new();
-            
+
             // Set the tokens directly
-            match client.set_tokens(client_id, access_token, refresh_token.as_deref(), *expires_in) {
+            match client.set_tokens(
+                client_id,
+                access_token,
+                refresh_token.as_deref(),
+                *expires_in,
+            ) {
                 Ok(_) => info!("Successfully set manual tokens"),
                 Err(err) => {
                     error!("Failed to set tokens: {:?}", err);
                     return;
                 }
             }
-            
+
             // Now create the post
             info!("Using provided token to create post...");
             match client.create_post(subreddit, title, text).await {
                 Ok(url) => info!("Post created successfully! URL: {}", url),
                 Err(err) => error!("Error creating post: {:?}", err),
             }
-        },
-        Commands::UserCreate { subreddit, title, text, client_id, username, password } => {
+        }
+        Commands::UserCreate {
+            subreddit,
+            title,
+            text,
+            client_id,
+            username,
+            password,
+        } => {
             // Handle subreddit format - don't add r/ if it's already there
             let display_sub = if subreddit.starts_with("r/") {
                 subreddit.to_string()
             } else {
                 format!("r/{}", subreddit)
             };
-            info!("Creating a new post in {} as user {}: '{}'", display_sub, username, title);
-            
+            info!(
+                "Creating a new post in {} as user {}: '{}'",
+                display_sub, username, title
+            );
+
             let mut client = RedditClient::new();
-            
+
             // Authenticate with username and password
-            match client.authenticate_user(client_id, username, password).await {
-                Ok(_) => info!("Successfully authenticated with Reddit API as user {}", username),
+            match client
+                .authenticate_user(client_id, username, password)
+                .await
+            {
+                Ok(_) => info!(
+                    "Successfully authenticated with Reddit API as user {}",
+                    username
+                ),
                 Err(err) => {
                     error!("Failed to authenticate with Reddit API: {:?}", err);
                     return;
                 }
             }
-            
+
             // Now create the post
             match client.create_post(subreddit, title, text).await {
                 Ok(url) => info!("Post created successfully! URL: {}", url),
                 Err(err) => error!("Error creating post: {:?}", err),
             }
-        },
-        Commands::ApiCreate { subreddit, title, text, client_id, client_secret, username, password } => {
+        }
+        Commands::ApiCreate {
+            subreddit,
+            title,
+            text,
+            client_id,
+            client_secret,
+            username,
+            password,
+        } => {
             // Handle subreddit format - don't add r/ if it's already there
             let display_sub = if subreddit.starts_with("r/") {
                 subreddit.to_string()
             } else {
                 format!("r/{}", subreddit)
             };
-            info!("Creating a new post in {} as {} using script app credentials: '{}'", display_sub, username, title);
-            
+            info!(
+                "Creating a new post in {} as {} using script app credentials: '{}'",
+                display_sub, username, title
+            );
+
             let mut client = RedditClient::new();
-            
+
             // Authenticate with API credentials
-            match client.authenticate_with_api_credentials(client_id, client_secret, username, password).await {
-                Ok(_) => info!("Successfully authenticated with Reddit API using script app credentials"),
+            match client
+                .authenticate_with_api_credentials(client_id, client_secret, username, password)
+                .await
+            {
+                Ok(_) => {
+                    info!("Successfully authenticated with Reddit API using script app credentials")
+                }
                 Err(err) => {
                     error!("Failed to authenticate with Reddit API: {:?}", err);
                     return;
                 }
             }
-            
+
             // Now create the post
             match client.create_post(subreddit, title, text).await {
                 Ok(url) => info!("Post created successfully! URL: {}", url),
