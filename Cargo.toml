@@ -19,3 +19,4 @@ webbrowser = "0.8.12"  # For opening the browser
 tiny_http = "0.12"     # For the localhost callback server
 url = "2.5.0"          # For URL parsing
 rand = "0.8.5"         # For generating state token
+dirs = "5.0.1"         # For finding home directory for token storage

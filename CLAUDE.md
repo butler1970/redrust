@@ -1,101 +1,100 @@
-# CONVENTIONS
+# RedRust Project Guide
 
-## async FTW w/ "Hidden Box/Pin"
+## Overview
 
-- ❌ NEVER use `async_trait` or `async fn` in traits
-- ❌ NEVER return `Box<dyn Future>` or `Pin<Box<dyn Future>>` from client interfaces
-- ✅ Provide synchronous interfaces with `.await()` called internally
-- ✅ Hide async complexity behind `channel` and `task` `spawn`
-- ✅ Return intuitive, domain-specific types (e.g., `AgentResponse`, `TranscriptionStream`)
-- ✅ Example: Method returns `TranscriptionStream` (not `Box<dyn Stream>`) that user consumes with `.next().await`.
+RedRust is a command-line client for posting to Reddit subreddits, with special support for accounts that use Google OAuth login.
 
-## Yo **CAVEMAN!** Read the damn docs
+## Build/Lint/Test Commands
 
-- Let's face it. You are a brilliant engineers who's been out of the game a couple years. That's like 20 years in any
-  other field.
-- GO GET THE LATEST DOCS!! Don't assume your tools from before the wheel are the best tools or the right syntax.
-- `cargo docs {{package_id}} --open` and MAKE A LITTLE guide for yourself with specific snippets that match the
-  operations this project is specifically doing.
+```bash
+# Build the project in debug mode
+cargo build
 
-## `cargo` rules & `Cargo.toml`
+# Build the project in release mode
+cargo build --release
 
-- !! DO NOT edit `Cargo.toml` directly !!
-- Always use the latest version of each dependency unless an exception in writing is granted.
-    - `cargo search {{package_id}} limit 1`
-    - `cargo add` will save you lots of time as it will ensure the latest version is imported.
-- use `cargo` to add, remove, update or upgrade packages.
-- Learn `cargo edit` and `cargo workspace` and you'll be good to go.
-- Lint (after EVERY change): `cargo fmt && cargo check --message-format short --quiet`
-- Build: `cargo build`, Run: `cargo run`
-- Test: Always use `nextest` and `cargo test`
+# Run tests
+cargo test
 
-## Error Handling
+# Run linting with Clippy
+cargo clippy -- -D warnings
 
-- Use Result<T,E> with custom errors
-- No unwrap() except in tests
-- Handle all Result/Option values explicitly
+# Format the code
+cargo fmt
+```
 
-## Style & Structure
+## Code Style Guidelines
 
-- No single file should be more than 300 lines long. Decompose once we hit that size into elegant modules that fully
-  handle concerns.
-- Rust official style: snake_case for variables/functions
-- Tests in `tests/` directory only
-- Use `tracing` for logs with appropriate levels
-- ❌ NO suppression of compiler or clippy warnings
-- ✅ All code MUST pass `cargo check --message-format short --quiet -- -D warnings` without exception. Ask if you believe
-  there's a valid exception and document it in writing after approval.
+This project follows the standard Rust style guidelines:
+- Use 4 spaces for indentation
+- Follow the official Rust naming conventions (snake_case for variables and functions, CamelCase for types)
+- Keep functions focused on a single responsibility
+- Document public API functions with doc comments
+- Use Result for error handling with appropriate error propagation
+- Limit line length to approximately 100 characters
 
-## Be a Software Artisan
+## Project Structure
 
-- Focus on interface first.
-    - Who is using this product? How can we make this drop in easy for them to adopt?
-    - How are they using it? What is intuitive in this context?
-    - Ask questions before making up features we don't need.
-- WRITE THE *MINIMAL AMOUNT OF CODE* NEEDED TO IMPACT A CHANGE (but do it fully and correctly)
-    - Do not add features that are not requested.
-    - NEVER EVER ADD `examples/*` unless Dave asks for them.
-    - DO ADD tests in nextest. Focus on the key elements that prove it is really working for the user of the software.
-    - DO NOT say "it's all good" or "completed" unless you have **tested like an end-user** (ie. `cargo run` for a bin)
-      and verified the feature.
-    - DO NOT add more than one binary per crate.
+- `src/main.rs` - CLI interface with command handling
+- `src/lib.rs` - Core data structures for Reddit API responses
+- `src/client/mod.rs` - Reddit client implementation with authentication methods
 
-## "REAL WORLD" Rules
+## Authentication Methods
 
-- ✅ All warnings must be fully resolved, not suppressed.
-- DO NOT use annotations to suppress warnings of any type.
-- DO NOT use private _variable naming to hide warnings.
-    - Unused code is either:
-        1. a bug that needs implementation to function
-        2. a half-assed non-production implementation
-        3. a mess that makes it hard to read and understand
-- NEVER leave **"TODO: in a real world situation ..."** or *"In production we'll handle this differently ..."* or
-  similar suggestions.
-- *WRITE PRODUCTION QUALITY CODE ALL THE TIME!*. The future is now. This is production. You are the best engineers I
-  know. Rise up.
-- ASK, ASK, ASK -- I love your initiative but writing full modules that are all wrong is costly and time consuming to
-  cleanup. Just ask and don't assume anything. I'll hurry along when it's time :)
+This project supports multiple authentication methods for the Reddit API:
 
-## SurrealDB (awesome)
+1. **App-only Authentication** (no user context, read-only)
+2. **Username/Password Authentication** (for standard Reddit accounts)
+3. **Browser-based OAuth** (for any account, including Google OAuth)
+4. **Script-app Authentication** (using Reddit API credentials)
+5. **Manual Token Authentication** (for headless environments)
 
-- Use SurrealDB for all database operations
-- The syntax in version 2.2.1 has changed significantly
-- use `kv-surrealkv` local file databases and `kv-tikv` for clustered/distributed databases.
-- use the appropriate table type for the job (document, relational, graph, time series, vector)
-- use `surrealdb-migrations` version 2.2+ for perfectly versioned migrations. This is really essential for distributed
-  file-based data.
-- use our `cyrup-ai/surrealdb-client` to get up and running fast with elegant traits and base implementations.
+The recommended approach for posting is to use the Browser-based OAuth method with token persistence, which works with any Reddit account including those using Google OAuth.
 
-## Preferred Software
+## Token Storage
 
-- `dioxus` (pure Rust front-end)
-- `axum` (elite tokio based server)
-- `floneum/floneum` ask "Kalosm" (local agents with superpowers)
-- `surrealdb` (swiss army knife of fast, indexed storage and ML support)
-- `livekit` for open-source real-time audio/video
-- `clap`, `ratatui`, `crossterm` ... just amazing cli tools
-- `serde` for serialization/deserialization
-- `tokio` for asynchronous programming and io bound parallelism
-- `rayon` for cpu bound parallelism
-- `nextest` for hella-fast and lovely test execution
-- `chromiumoxide` for web browser automation
+The application stores authentication tokens in the user's home directory at `~/.redrust/` to avoid requiring login for each use. Refresh tokens are used to automatically renew access when needed.
+
+## Headless Environments
+
+For headless environments without browser access, you have two options:
+
+1. **Use the TokenCreate command**: Manually obtain tokens from Reddit elsewhere and provide them directly to the application. This is useful for server environments or automated scripts.
+
+```bash
+cargo run -- token-create --subreddit mysubreddit --title "My Post Title" --text "Post content here" --client-id YOUR_CLIENT_ID --access-token YOUR_ACCESS_TOKEN --refresh-token YOUR_REFRESH_TOKEN
+```
+
+2. **Transfer token files**: After authenticating on a machine with a browser, copy the token files from `~/.redrust/` to the headless environment.
+
+### Workflow for Headless Environments
+
+Here's a typical workflow for using RedRust in headless environments:
+
+1. **Initial Setup (on a machine with browser access)**:
+   ```bash
+   # Run the browser-based authentication once
+   cargo run -- browser-create --subreddit test --title "Test Post" --text "Test content" --client-id YOUR_CLIENT_ID
+   ```
+   This will create and store tokens in `~/.redrust/YOUR_CLIENT_ID.json`.
+
+2. **Transfer tokens to headless environment**:
+   ```bash
+   # Copy the token file to the headless machine
+   scp ~/.redrust/YOUR_CLIENT_ID.json user@headless-server:~/.redrust/
+   ```
+
+3. **Use on headless environment**:
+   ```bash
+   # The tokens will be automatically loaded and refreshed
+   cargo run -- browser-create --subreddit mysubreddit --title "Headless Post" --text "This was posted from a headless environment" --client-id YOUR_CLIENT_ID
+   ```
+
+4. **If token transfer isn't possible, extract tokens and use the token-create command**:
+   ```bash
+   # Examine the token file to get the values
+   cat ~/.redrust/YOUR_CLIENT_ID.json
+   
+   # Use the values in the token-create command
+   cargo run -- token-create --subreddit mysubreddit --title "Headless Post" --text "This was posted using extracted tokens" --client-id YOUR_CLIENT_ID --access-token YOUR_ACCESS_TOKEN --refresh-token YOUR_REFRESH_TOKEN
+   ```

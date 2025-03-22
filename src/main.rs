@@ -102,6 +102,39 @@ enum Commands {
         port: Option<u16>,
     },
     
+    /// Create a post using manual tokens (for headless environments).
+    /// Use this when you have obtained tokens separately and want to use
+    /// them without browser authentication.
+    TokenCreate {
+        /// The name of the subreddit to post to.
+        #[arg(help = "Subreddit name", required = true)]
+        subreddit: String,
+        
+        /// Title of the post.
+        #[arg(help = "Post title", required = true)]
+        title: String,
+        
+        /// Text content of the post.
+        #[arg(help = "Post text content", required = true)]
+        text: String,
+        
+        /// Your Reddit API client ID.
+        #[arg(help = "Client ID from your Reddit app", required = true)]
+        client_id: String,
+        
+        /// The access token obtained from Reddit OAuth.
+        #[arg(help = "OAuth access token", required = true)]
+        access_token: String,
+        
+        /// The refresh token obtained from Reddit OAuth (if available).
+        #[arg(help = "OAuth refresh token", required = false)]
+        refresh_token: Option<String>,
+        
+        /// Time in seconds until the access token expires.
+        #[arg(help = "Token expiration time in seconds", default_value = "3600")]
+        expires_in: u64,
+    },
+    
     /// Create a post using a script application's API credentials.
     /// Works with any Reddit account (including Google OAuth logins).
     /// Requires creating a script app in Reddit preferences first.
@@ -196,15 +229,22 @@ async fn main() {
             };
             info!("Creating a new post in {} via browser authentication: '{}'", display_sub, title);
             
-            let mut client = RedditClient::new();
+            // Use stored tokens if available
+            let mut client = RedditClient::with_stored_tokens(client_id);
             
-            // Authenticate with browser OAuth
-            info!("Starting browser authentication flow. This will open your default web browser.");
-            info!("Please log in with your Reddit account (including Google OAuth if that's how you normally log in).");
-            info!("After logging in, you'll need to authorize the application to access your Reddit account.");
+            // Try to authenticate with stored tokens first, falling back to browser OAuth
+            info!("Checking for stored OAuth tokens...");
             
-            match client.authenticate_with_browser_oauth(client_id, *port, Some("identity submit read")).await {
-                Ok(_) => info!("Successfully authenticated with Reddit API via browser"),
+            match client.authenticate_with_stored_or_browser(client_id, *port, Some("identity submit read")).await {
+                Ok(_) => {
+                    if client.token_storage.as_ref().map_or(false, |s| s.is_access_token_valid()) {
+                        info!("Using existing OAuth token (no browser login required)");
+                    } else if client.token_storage.as_ref().map_or(false, |s| s.has_refresh_token()) {
+                        info!("Successfully refreshed OAuth token (no browser login required)");
+                    } else {
+                        info!("Successfully authenticated with Reddit API via browser");
+                    }
+                },
                 Err(err) => {
                     error!("Failed to authenticate with Reddit API: {:?}", err);
                     return;
@@ -213,6 +253,34 @@ async fn main() {
             
             // Now create the post
             info!("Authentication successful! Creating post...");
+            match client.create_post(subreddit, title, text).await {
+                Ok(url) => info!("Post created successfully! URL: {}", url),
+                Err(err) => error!("Error creating post: {:?}", err),
+            }
+        },
+        Commands::TokenCreate { subreddit, title, text, client_id, access_token, refresh_token, expires_in } => {
+            // Handle subreddit format - don't add r/ if it's already there
+            let display_sub = if subreddit.starts_with("r/") {
+                subreddit.to_string()
+            } else {
+                format!("r/{}", subreddit)
+            };
+            info!("Creating a new post in {} using provided token: '{}'", display_sub, title);
+            
+            // Create a client and set the tokens
+            let mut client = RedditClient::new();
+            
+            // Set the tokens directly
+            match client.set_tokens(client_id, access_token, refresh_token.as_deref(), *expires_in) {
+                Ok(_) => info!("Successfully set manual tokens"),
+                Err(err) => {
+                    error!("Failed to set tokens: {:?}", err);
+                    return;
+                }
+            }
+            
+            // Now create the post
+            info!("Using provided token to create post...");
             match client.create_post(subreddit, title, text).await {
                 Ok(url) => info!("Post created successfully! URL: {}", url),
                 Err(err) => error!("Error creating post: {:?}", err),

@@ -6,6 +6,9 @@ use std::fmt;
 use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
+use std::fs::{self, File};
+use std::io::{Read, Write};
+use std::path::PathBuf;
 use rand::{Rng, distributions::Alphanumeric};
 use tiny_http::{Server, Response, StatusCode};
 use webbrowser;
@@ -43,11 +46,49 @@ impl From<serde_json::Error> for RedditClientError {
     }
 }
 
+/// Structure to store OAuth tokens and credentials
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct TokenStorage {
+    pub client_id: String,
+    pub access_token: Option<String>,
+    pub refresh_token: Option<String>,
+    pub token_expires_at: Option<u64>,
+    pub last_updated: u64,
+}
+
+impl TokenStorage {
+    pub fn new(client_id: &str) -> Self {
+        Self {
+            client_id: client_id.to_string(),
+            access_token: None,
+            refresh_token: None,
+            token_expires_at: None,
+            last_updated: chrono::Utc::now().timestamp() as u64,
+        }
+    }
+    
+    pub fn is_access_token_valid(&self) -> bool {
+        match (self.access_token.as_ref(), self.token_expires_at) {
+            (Some(_), Some(expiry)) => {
+                let now = chrono::Utc::now().timestamp() as u64;
+                // Add a 5-minute buffer to avoid edge cases
+                now + 300 < expiry
+            }
+            _ => false,
+        }
+    }
+    
+    pub fn has_refresh_token(&self) -> bool {
+        self.refresh_token.is_some()
+    }
+}
+
 #[derive(Clone)]
 pub struct RedditClient {
     pub client: Client,
     pub access_token: Option<String>,
     pub user_agent: String,
+    pub token_storage: Option<TokenStorage>,
 }
 
 impl RedditClient {
@@ -57,6 +98,7 @@ impl RedditClient {
             client: Self::get_client(&user_agent).unwrap(),
             access_token: None,
             user_agent,
+            token_storage: None,
         }
     }
     
@@ -65,7 +107,129 @@ impl RedditClient {
             client: Self::get_client(&user_agent).unwrap(),
             access_token: None,
             user_agent,
+            token_storage: None,
         }
+    }
+    
+    /// Load stored tokens for a client ID if available
+    pub fn with_stored_tokens(client_id: &str) -> Self {
+        let mut client = Self::new();
+        
+        if let Some(storage) = Self::load_token_storage(client_id) {
+            if storage.is_access_token_valid() {
+                // If we have a valid access token, use it
+                client.access_token = storage.access_token.clone();
+            }
+            client.token_storage = Some(storage);
+        } else {
+            // No stored tokens, create a new storage
+            client.token_storage = Some(TokenStorage::new(client_id));
+        }
+        
+        client
+    }
+    
+    /// Set token values manually (useful for headless environments)
+    pub fn set_tokens(&mut self, client_id: &str, access_token: &str, refresh_token: Option<&str>, expires_in: u64) -> Result<(), RedditClientError> {
+        let now = chrono::Utc::now().timestamp() as u64;
+        let expires_at = now + expires_in;
+        
+        // Create or update token storage
+        if self.token_storage.is_none() {
+            self.token_storage = Some(TokenStorage::new(client_id));
+        }
+        
+        if let Some(storage) = &mut self.token_storage {
+            storage.client_id = client_id.to_string();
+            storage.access_token = Some(access_token.to_string());
+            storage.token_expires_at = Some(expires_at);
+            storage.last_updated = now;
+            
+            if let Some(refresh) = refresh_token {
+                storage.refresh_token = Some(refresh.to_string());
+            }
+            
+            // Save the token storage
+            self.save_token_storage()?;
+        }
+        
+        // Set the token for immediate use
+        self.access_token = Some(access_token.to_string());
+        
+        Ok(())
+    }
+    
+    /// Get the directory for storing tokens
+    fn get_token_dir() -> PathBuf {
+        let mut token_dir = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
+        token_dir.push(".redrust");
+        
+        // Create the directory if it doesn't exist
+        if !token_dir.exists() {
+            fs::create_dir_all(&token_dir).ok();
+        }
+        
+        token_dir
+    }
+    
+    /// Get the path to the token file for a client ID
+    fn get_token_path(client_id: &str) -> PathBuf {
+        let mut path = Self::get_token_dir();
+        path.push(format!("{}.json", client_id));
+        path
+    }
+    
+    /// Load token storage from the filesystem
+    fn load_token_storage(client_id: &str) -> Option<TokenStorage> {
+        let token_path = Self::get_token_path(client_id);
+        
+        if !token_path.exists() {
+            return None;
+        }
+        
+        let mut file = match File::open(&token_path) {
+            Ok(file) => file,
+            Err(_) => return None,
+        };
+        
+        let mut contents = String::new();
+        if file.read_to_string(&mut contents).is_err() {
+            return None;
+        }
+        
+        match serde_json::from_str::<TokenStorage>(&contents) {
+            Ok(storage) => Some(storage),
+            Err(e) => {
+                debug!("Failed to parse token storage: {}", e);
+                None
+            }
+        }
+    }
+    
+    /// Save token storage to the filesystem
+    fn save_token_storage(&self) -> Result<(), RedditClientError> {
+        if let Some(storage) = &self.token_storage {
+            let token_path = Self::get_token_path(&storage.client_id);
+            
+            let json = serde_json::to_string_pretty(storage)
+                .map_err(|e| RedditClientError::ApiError(
+                    format!("Failed to serialize token storage: {}", e)
+                ))?;
+            
+            let mut file = File::create(&token_path)
+                .map_err(|e| RedditClientError::ApiError(
+                    format!("Failed to create token file: {}", e)
+                ))?;
+            
+            file.write_all(json.as_bytes())
+                .map_err(|e| RedditClientError::ApiError(
+                    format!("Failed to write token file: {}", e)
+                ))?;
+            
+            debug!("Saved token storage to {}", token_path.display());
+        }
+        
+        Ok(())
     }
 
     fn get_client(user_agent: &str) -> Result<Client, RedditClientError> {
@@ -145,6 +309,124 @@ impl RedditClient {
     /// 2. Opens a browser for the user to log in and authorize the app
     /// 3. Reddit redirects back to localhost with an authorization code
     /// 4. Exchanges this code for an access token
+    /// Try to refresh the access token using a stored refresh token
+    pub async fn refresh_access_token(&mut self) -> Result<String, RedditClientError> {
+        let storage = match &self.token_storage {
+            Some(storage) if storage.has_refresh_token() => storage.clone(),
+            _ => return Err(RedditClientError::ApiError(
+                "No refresh token available".to_string()
+            )),
+        };
+        
+        let refresh_token = storage.refresh_token.as_ref().unwrap();
+        let client_id = storage.client_id.clone();
+        
+        debug!("Refreshing access token using refresh token");
+        
+        let params = [
+            ("grant_type", "refresh_token"),
+            ("refresh_token", refresh_token),
+        ];
+        
+        // For the Authorization header, use just the client_id
+        let auth = base64::encode(format!("{}:", client_id));
+        
+        let res = self.client
+            .post("https://www.reddit.com/api/v1/access_token")
+            .header("Authorization", format!("Basic {}", auth))
+            .form(&params)
+            .send()
+            .await?;
+            
+        // Check for HTTP errors
+        if !res.status().is_success() {
+            let status = res.status();
+            let body = res.text().await?;
+            return Err(RedditClientError::ApiError(
+                format!("Token refresh failed: HTTP {}: {}", status, body)
+            ));
+        }
+        
+        let json: serde_json::Value = res.json().await?;
+        
+        // Check for API errors
+        if let Some(error) = json["error"].as_str() {
+            return Err(RedditClientError::ApiError(
+                format!("Token refresh failed: {}", error)
+            ));
+        }
+        
+        // Get the new access token
+        let token = json["access_token"].as_str()
+            .ok_or_else(|| RedditClientError::ApiError(
+                "Failed to extract access token from response".to_string()
+            ))?.to_string();
+        
+        // Update expiration time if provided
+        let expires_in = json["expires_in"].as_u64().unwrap_or(3600);
+        let now = chrono::Utc::now().timestamp() as u64;
+        let token_expires_at = now + expires_in;
+        
+        // Update our token storage
+        if let Some(storage) = &mut self.token_storage {
+            storage.access_token = Some(token.clone());
+            storage.token_expires_at = Some(token_expires_at);
+            storage.last_updated = now;
+            
+            // Save the updated token storage
+            self.save_token_storage()?;
+        }
+        
+        // Store the token for immediate use
+        self.access_token = Some(token.clone());
+        debug!("Access token refreshed successfully");
+        
+        Ok(token)
+    }
+
+    /// Authenticate with browser OAuth, but first try to use a stored refresh token
+    pub async fn authenticate_with_stored_or_browser(
+        &mut self,
+        client_id: &str,
+        redirect_port: Option<u16>,
+        scopes: Option<&str>,
+    ) -> Result<String, RedditClientError> {
+        // Make sure we have token storage
+        if self.token_storage.is_none() {
+            self.token_storage = Some(TokenStorage::new(client_id));
+        }
+        
+        // First try to use an existing token if it's still valid
+        if let Some(storage) = &self.token_storage {
+            if storage.is_access_token_valid() {
+                debug!("Using existing valid access token");
+                if let Some(token) = &storage.access_token {
+                    self.access_token = Some(token.clone());
+                    return Ok(token.clone());
+                }
+            }
+            
+            // If we have a refresh token, try to use it
+            if storage.has_refresh_token() {
+                debug!("Trying to refresh access token");
+                match self.refresh_access_token().await {
+                    Ok(token) => {
+                        debug!("Successfully refreshed token");
+                        return Ok(token);
+                    },
+                    Err(e) => {
+                        debug!("Failed to refresh token: {}, will try browser auth", e);
+                        // Continue to browser auth
+                    }
+                }
+            }
+        }
+        
+        // If we get here, we need browser authentication
+        debug!("Proceeding with browser authentication");
+        self.authenticate_with_browser_oauth(client_id, redirect_port, scopes).await
+    }
+
     pub async fn authenticate_with_browser_oauth(
         &mut self,
         client_id: &str,
@@ -369,6 +651,33 @@ impl RedditClient {
         
         // Store the token for future use
         self.access_token = Some(token.clone());
+        
+        // Update token storage
+        let now = chrono::Utc::now().timestamp() as u64;
+        let expires_in = json["expires_in"].as_u64().unwrap_or(3600);
+        let expires_at = now + expires_in;
+        
+        // Create or update our token storage
+        if self.token_storage.is_none() {
+            self.token_storage = Some(TokenStorage::new(client_id));
+        }
+        
+        if let Some(storage) = &mut self.token_storage {
+            storage.client_id = client_id.to_string();
+            storage.access_token = Some(token.clone());
+            storage.token_expires_at = Some(expires_at);
+            storage.last_updated = now;
+            
+            // Store the refresh token if provided
+            if let Some(refresh_token) = json["refresh_token"].as_str() {
+                storage.refresh_token = Some(refresh_token.to_string());
+                debug!("Received and stored refresh token");
+            }
+            
+            // Save the token storage
+            self.save_token_storage()?;
+        }
+        
         debug!("Browser OAuth authentication successful, token obtained");
         
         Ok(token)
