@@ -18,6 +18,21 @@ struct Cli {
 
 #[derive(clap::Subcommand, Debug)]
 enum Commands {
+    /// Setup OAuth tokens for later use in headless environments.
+    /// Run this once on a computer with a browser to generate persistent tokens.
+    SetupTokens {
+        /// Your Reddit API client ID.
+        #[arg(help = "Client ID from your Reddit installed app", required = true)]
+        client_id: String,
+        
+        /// Port to use for the localhost callback (default: 8080).
+        #[arg(help = "Port to use for the OAuth callback", required = false)]
+        port: Option<u16>,
+        
+        /// OAuth scopes to request (default: "identity submit read").
+        #[arg(help = "Space-separated list of OAuth scopes to request", required = false)]
+        scopes: Option<String>,
+    },
     /// Command to fetch posts from a subreddit.
     Posts {
         /// The name of the subreddit to manage.
@@ -102,6 +117,40 @@ enum Commands {
         port: Option<u16>,
     },
     
+    /// Create a post using a headless browser (Selenium) for OAuth authentication.
+    /// Supports Google OAuth login. Available only when compiled with the "headless" feature.
+    /// Requires chromedriver to be running on port 4444.
+    #[cfg(feature = "headless")]
+    HeadlessCreate {
+        /// The name of the subreddit to post to.
+        #[arg(help = "Subreddit name", required = true)]
+        subreddit: String,
+        
+        /// Title of the post.
+        #[arg(help = "Post title", required = true)]
+        title: String,
+        
+        /// Text content of the post.
+        #[arg(help = "Post text content", required = true)]
+        text: String,
+        
+        /// Your Reddit API client ID.
+        #[arg(help = "Client ID from your Reddit installed app", required = true)]
+        client_id: String,
+        
+        /// Google account email (optional).
+        #[arg(help = "Your Google account email (optional for Google OAuth)", required = false)]
+        google_email: Option<String>,
+        
+        /// Google account password (optional).
+        #[arg(help = "Your Google account password (optional for Google OAuth)", required = false)]
+        google_password: Option<String>,
+        
+        /// Port to use for the localhost callback (default: 8080).
+        #[arg(help = "Port to use for the OAuth callback", required = false)]
+        port: Option<u16>,
+    },
+    
     /// Create a post using manual tokens (for headless environments).
     /// Use this when you have obtained tokens separately and want to use
     /// them without browser authentication.
@@ -177,6 +226,155 @@ async fn main() {
     let cli = Cli::parse();
 
     match &cli.command {
+        Commands::SetupTokens { client_id, port, scopes } => {
+            info!("Setting up OAuth tokens for Reddit API access with client ID: {}", client_id);
+            
+            // Create a new client
+            let mut client = RedditClient::with_stored_tokens(client_id);
+            
+            // Check if we already have valid tokens
+            if client.token_storage.as_ref().map_or(false, |s| s.is_access_token_valid()) {
+                info!("You already have valid OAuth tokens for this client ID.");
+                info!("Tokens are stored in ~/.redrust/{}.json", client_id);
+                return;
+            }
+            
+            // Check if we have a refresh token that we can use
+            if client.token_storage.as_ref().map_or(false, |s| s.has_refresh_token()) {
+                info!("Found a stored refresh token. Attempting to refresh access token...");
+                
+                match client.refresh_access_token().await {
+                    Ok(_) => {
+                        info!("Successfully refreshed access token.");
+                        info!("Tokens are stored in ~/.redrust/{}.json", client_id);
+                        info!("You can now copy this file to other environments or use the TokenCreate command.");
+                        return;
+                    },
+                    Err(e) => {
+                        info!("Failed to refresh token: {}", e);
+                        info!("Will proceed with interactive browser authentication.");
+                    }
+                }
+            }
+            
+            // No valid tokens, perform browser OAuth flow
+            info!("Starting interactive browser authentication flow...");
+            info!("This will open your default web browser. Please log in to Reddit and authorize the application.");
+            
+            match client.authenticate_with_browser_oauth(
+                client_id, 
+                *port, 
+                scopes.as_deref()
+            ).await {
+                Ok(_) => {
+                    info!("Authentication successful!");
+                    info!("Tokens have been obtained and stored in ~/.redrust/{}.json", client_id);
+                    info!("");
+                    info!("=== HEADLESS ENVIRONMENT INSTRUCTIONS ===");
+                    info!("To use these tokens in a headless environment:");
+                    info!("1. Copy the ~/.redrust/{}.json file to the same location on your headless machine", client_id);
+                    info!("2. Run redrust with any command that uses authentication");
+                    info!("   The tokens will be automatically loaded and refreshed as needed");
+                    info!("");
+                    info!("Alternatively, you can use the TokenCreate command with the token values from the JSON file");
+                    
+                    // Display token info for manual setup
+                    if let Some(storage) = &client.token_storage {
+                        if let (Some(access_token), Some(refresh_token)) = (&storage.access_token, &storage.refresh_token) {
+                            info!("");
+                            info!("For manual setup with TokenCreate command, use:");
+                            info!("redrust token-create --client-id {} --access-token {} --refresh-token {}", 
+                                  client_id, access_token, refresh_token);
+                        }
+                    }
+                },
+                Err(err) => {
+                    error!("Failed to authenticate with Reddit API: {:?}", err);
+                }
+            }
+        },
+        #[cfg(feature = "headless")]
+        Commands::HeadlessCreate { subreddit, title, text, client_id, google_email, google_password, port } => {
+            // Handle subreddit format - don't add r/ if it's already there
+            let display_sub = if subreddit.starts_with("r/") {
+                subreddit.to_string()
+            } else {
+                format!("r/{}", subreddit)
+            };
+            info!("Creating a new post in {} via headless browser authentication: '{}'", display_sub, title);
+            
+            // Create a new client
+            let mut client = RedditClient::with_stored_tokens(client_id);
+            
+            // Try to authenticate with stored tokens first, or use headless browser
+            info!("Checking for stored OAuth tokens...");
+            
+            // First check if we have valid tokens stored
+            if client.token_storage.as_ref().map_or(false, |s| s.is_access_token_valid()) {
+                info!("Using existing OAuth token (no browser login required)");
+            } else if client.token_storage.as_ref().map_or(false, |s| s.has_refresh_token()) {
+                // Try to refresh the token
+                match client.refresh_access_token().await {
+                    Ok(_) => {
+                        info!("Successfully refreshed OAuth token (no browser login required)");
+                    },
+                    Err(e) => {
+                        info!("Failed to refresh token: {}, will try headless browser auth", e);
+                        
+                        // Use headless browser authentication
+                        match client.authenticate_with_headless_browser(
+                            client_id, 
+                            *port, 
+                            google_email.as_deref(), 
+                            google_password.as_deref(), 
+                            Some("identity submit read")
+                        ).await {
+                            Ok(_) => {
+                                if client.access_token.is_some() {
+                                    info!("Successfully authenticated with Reddit API via headless browser");
+                                } else {
+                                    error!("Failed to get access token despite authentication appearing successful");
+                                    return;
+                                }
+                            },
+                            Err(err) => {
+                                error!("Failed to authenticate with Reddit API: {:?}", err);
+                                return;
+                            }
+                        }
+                    }
+                }
+            } else {
+                // No valid tokens, use headless browser authentication
+                match client.authenticate_with_headless_browser(
+                    client_id, 
+                    *port, 
+                    google_email.as_deref(), 
+                    google_password.as_deref(), 
+                    Some("identity submit read")
+                ).await {
+                    Ok(_) => {
+                        if client.access_token.is_some() {
+                            info!("Successfully authenticated with Reddit API via headless browser");
+                        } else {
+                            error!("Failed to get access token despite authentication appearing successful");
+                            return;
+                        }
+                    },
+                    Err(err) => {
+                        error!("Failed to authenticate with Reddit API: {:?}", err);
+                        return;
+                    }
+                }
+            }
+            
+            // Now create the post
+            info!("Authentication successful! Creating post...");
+            match client.create_post(subreddit, title, text).await {
+                Ok(url) => info!("Post created successfully! URL: {}", url),
+                Err(err) => error!("Error creating post: {:?}", err),
+            }
+        },
         Commands::Posts { subreddit, count } => {
             info!("Gathering new posts from r/{}", subreddit);
             

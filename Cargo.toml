@@ -20,3 +20,9 @@ tiny_http = "0.12"     # For the localhost callback server
 url = "2.5.0"          # For URL parsing
 rand = "0.8.5"         # For generating state token
 dirs = "5.0.1"         # For finding home directory for token storage
+# Optional headless browser support
+thirtyfour = { version = "0.31.0", optional = true }  # Selenium WebDriver client
+
+[features]
+default = []
+headless = ["thirtyfour"]  # Feature flag for headless browser support
