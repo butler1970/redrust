@@ -126,6 +126,9 @@ impl PostsOperation {
                 .with_timezone(&Los_Angeles);
             let timestamp_str = local_time.format("%H:%M").to_string();
 
+            // Create the API thing_id (t3_ prefix for posts)
+            let thing_id = format!("t3_{}", post.data.id);
+
             // Determine post type indicator with a single character
             let (post_type, _type_code) = if post.data.is_self {
                 ("T", "Text") // Text post
@@ -187,13 +190,14 @@ impl PostsOperation {
             let permalink = format!("https://reddit.com{}", post.data.permalink);
 
             output.push_str(&format!(
-                "{:2}. [{}] [{}] {} ({}) r/{} | {}\n",
+                "{:2}. [{}] [{}] {} ({}) r/{} | ID: {} | {}\n",
                 i + 1,
                 post_type,
                 timestamp_str,
                 title,
                 content,
                 post.data.subreddit,
+                thing_id,
                 permalink
             ));
         }
@@ -207,9 +211,16 @@ impl PostsOperation {
                 .with_timezone(&Los_Angeles);
             let timestamp_str = local_time.format("%Y-%m-%d %H:%M:%S").to_string();
 
+            // Create the API thing_id (t3_ prefix for posts)
+            let thing_id = format!("t3_{}", post.data.id);
+
             // Display post with more details
             output.push_str("\n============ POST =============\n");
             output.push_str(&format!("[{}] [Los Angeles time]\n", timestamp_str));
+            output.push_str(&format!(
+                "Thing ID: {} (use this for commenting)\n",
+                thing_id
+            ));
             output.push_str(&post.data.format_summary());
             output.push_str("\n================================\n\n");
         }
