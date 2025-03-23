@@ -132,6 +132,14 @@ user-comment-named:
     set +H
     cargo run -- user-comment "{{thing_id}}" "{{text}}"
 
+# Fetch information about a subreddit
+subreddit-info subreddit:
+    cargo run -- subreddit-info "{{subreddit}}"
+
+# Fetch information about a subreddit using named parameters
+subreddit-info-named:
+    cargo run -- subreddit-info "{{subreddit}}"
+
 # Set default values for named parameter commands
 count := "10"
 subreddit := ""
@@ -162,6 +170,19 @@ example-browser-create-named:
 # Example of creating a comment with browser auth
 example-browser-comment:
     just thing_id=t3_POSTID text="This is a test comment" browser-comment-named
+
+# Example of fetching information about a subreddit
+example-subreddit-info:
+    just subreddit=rust subreddit-info-named
+
+# Example workflow: get subreddit info, then fetch posts from that subreddit
+example-subreddit-workflow:
+    #!/usr/bin/env bash
+    echo "First, let's check information about the r/rust subreddit:"
+    just subreddit=rust subreddit-info-named
+    echo ""
+    echo "Now, let's fetch the latest posts from this subreddit:"
+    just count=5 subreddit=rust brief=true posts-named
 
 # Get posts and then comment workflow - this will list posts and inform how to comment on them
 example-workflow:

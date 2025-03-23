@@ -1,4 +1,5 @@
 use crate::models::public_feed::PublicFeedResponse;
+use crate::models::subreddit_info::SubredditInfoResponse;
 use crate::models::subreddit_posts::SubredditPostsResponse;
 use crate::models::RedditRNewResponse;
 use log::{debug, info};
@@ -1389,6 +1390,76 @@ impl RedditClient {
         Err(RedditClientError::ApiError(
             "Failed to create post. Reddit requires user authentication with proper scopes for this operation.".to_string()
         ))
+    }
+
+    /// Fetch information about a subreddit, including its description and properties
+    ///
+    /// # Arguments
+    /// * `subreddit` - The name of the subreddit (without the r/ prefix)
+    ///
+    /// # Returns
+    /// Detailed information about the subreddit, including description, subscriber count,
+    /// creation date, posting rules, and other properties
+    pub async fn fetch_subreddit_info(
+        &self,
+        subreddit: &str,
+    ) -> Result<SubredditInfoResponse, RedditClientError> {
+        // Clean up the subreddit name - remove r/ if it's there
+        let subreddit_clean = if subreddit.starts_with("r/") {
+            &subreddit[2..]
+        } else {
+            subreddit
+        };
+
+        // Check if we have an access token and use OAuth endpoint if we do
+        let base_url = if self.access_token.is_some() {
+            debug!("Using OAuth API endpoint with access token");
+            "https://oauth.reddit.com/r"
+        } else {
+            debug!("Using public API endpoint (no access token)");
+            "https://www.reddit.com/r"
+        };
+
+        let url = format!("{}/{}/about.json", base_url, subreddit_clean);
+        debug!("Fetching subreddit info URL: {}", url);
+        debug!("Using User-Agent: {}", self.user_agent);
+
+        // Create request builder
+        let mut req_builder = self.client.get(&url);
+
+        // Add authorization header if we have a token
+        if let Some(token) = &self.access_token {
+            debug!("Adding Authorization header with token");
+            req_builder = req_builder.header("Authorization", format!("Bearer {}", token));
+        }
+
+        // Send the request
+        let response = req_builder.send().await?;
+        let status = response.status();
+        debug!("Response status: {}", status);
+
+        if !status.is_success() {
+            return Err(RedditClientError::ApiError(format!(
+                "Server returned error status: {}",
+                status
+            )));
+        }
+
+        let body = response.text().await?;
+        debug!("Response body length: {} bytes", body.len());
+
+        // Parse using our SubredditInfoResponse model
+        match serde_json::from_str::<SubredditInfoResponse>(&body) {
+            Ok(parsed) => {
+                debug!("Successfully parsed subreddit info for r/{}", subreddit_clean);
+                Ok(parsed)
+            }
+            Err(e) => {
+                debug!("Error parsing subreddit info: {}", e);
+                debug!("First 100 chars: {}", &body[..body.len().min(100)]);
+                Err(RedditClientError::ParseError(e))
+            }
+        }
     }
 
     /// Create a comment on a post or another comment.

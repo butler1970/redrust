@@ -189,4 +189,13 @@ pub enum Commands {
         #[arg(help = "Comment text content", required = true)]
         text: String,
     },
+    
+    /// Fetch information about a subreddit, including description and rules.
+    /// Note: REDDIT_USER_AGENT must be set in your environment or .env file.
+    SubredditInfo {
+        /// The name of the subreddit to fetch information for.
+        /// Can include the 'r/' prefix (e.g., "r/rust") or just the name (e.g., "rust").
+        #[arg(help = "Subreddit name", required = true)]
+        subreddit: String,
+    },
 }

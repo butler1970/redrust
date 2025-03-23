@@ -2,6 +2,7 @@ use serde::Deserialize;
 use std::collections::HashMap;
 
 pub mod public_feed;
+pub mod subreddit_info;
 pub mod subreddit_posts;
 
 // Common data types - to be gradually migrated to specialized modules

@@ -2,7 +2,14 @@
 
 ## Overview
 
-RedRust is a command-line client for posting to Reddit subreddits, with special support for accounts that use Google OAuth login. It supports environment-based configuration, allowing you to securely provide credentials without exposing them on the command line.
+RedRust is a command-line client for interacting with Reddit, with special support for accounts that use Google OAuth login. It supports:
+
+- Fetching posts from subreddits or the public frontpage
+- Creating posts in subreddits (with various authentication methods)
+- Adding comments to posts and other comments
+- Retrieving detailed information about subreddits, including descriptions and rules
+
+RedRust uses environment-based configuration, allowing you to securely provide credentials without exposing them on the command line.
 
 ## Configuration
 
@@ -95,6 +102,14 @@ just posts 10           # Get 10 posts from Reddit frontpage in detailed format
 just count=5 subreddit=rust brief=true posts-named
 ```
 ```bash
+# Fetch information about a subreddit
+just subreddit-info rust
+```
+```bash
+# Fetch subreddit info with named parameters
+just subreddit=rust subreddit-info-named
+```
+```bash
 # Create posts with different authentication methods
 # (All credentials are loaded from environment variables)
 just create subreddit "Post Title" "Post content"
@@ -147,6 +162,7 @@ This project follows the standard Rust style guidelines:
 - `src/models/` - Data structures for Reddit API responses
   - `mod.rs` - Common model definitions
   - `public_feed.rs` - Models for the public feed
+  - `subreddit_info.rs` - Models for subreddit information
   - `subreddit_posts.rs` - Models for subreddit posts
 - `src/operations/` - Operation modules for each command
   - `posts.rs` - Fetching posts from Reddit
@@ -156,6 +172,7 @@ This project follows the standard Rust style guidelines:
   - `token_create.rs` - Creating posts with manual tokens
   - `api_create.rs` - Creating posts with script API credentials
   - `comment.rs` - Creating comments on Reddit posts
+  - `subreddit_info.rs` - Fetching subreddit information and properties
 
 ## Authentication Methods
 
@@ -192,6 +209,86 @@ just token-create mysubreddit "My Post Title" "Post content here"
 <button onclick="navigator.clipboard.writeText('just token-create mysubreddit "My Post Title" "Post content here"')">📋 Copy</button>
 
 2. **Transfer token files**: After authenticating on a machine with a browser, copy the token files from `~/.redrust/` to the headless environment.
+
+## Subreddit Information
+
+RedRust provides a way to fetch detailed information about subreddits, which can be useful for exploring Reddit communities or for automating content discovery.
+
+```bash
+# Using cargo
+cargo run -- subreddit-info rust
+```
+
+```bash
+# Using just
+just subreddit-info rust
+```
+
+The information includes:
+- Subreddit title and display name
+- Number of subscribers
+- Creation date
+- Community description
+- Extended description (if available)
+- Posting rules and restrictions
+- Community type (public, private, restricted, etc.)
+- Age restriction status (NSFW)
+
+This feature is particularly useful for:
+- Finding subreddit descriptions to identify appropriate communities for content
+- Checking community rules before posting
+- Gathering information about Reddit communities for analysis
+- Discovering details about a subreddit before participating
+
+### Example Output
+
+Here's an example of the output when fetching information about the r/rust subreddit:
+
+```
+# The Rust Programming Language
+r/rust
+
+Subscribers: 339708
+Created: 2010-12-02
+Type: Public
+
+## Community Description
+A place for all things related to the Rust programming language—an open-source systems language that emphasizes performance, reliability, and productivity.
+
+## Extended Description
+### **Please read [The Rust Community Code of Conduct](https://www.rust-lang.org/policies/code-of-conduct)**
+
+***
+
+### The Rust Programming Language
+
+A place for all things related to [the Rust programming language](https://www.rust-lang.org/)—an open-source systems language that emphasizes performance, reliability, and productivity.
+
+## Posting Rules
+- Videos not allowed
+- Galleries not allowed
+- Posting restricted
+
+URL: https://reddit.com/r/rust/
+```
+
+### Combining with Other Commands
+
+You can use the subreddit info functionality as part of your workflows. For example, you might want to check a subreddit's description and rules before posting or fetching content. RedRust provides a workflow example that demonstrates this:
+
+```bash
+# Run a workflow that checks subreddit info and then fetches posts
+just example-subreddit-workflow
+```
+
+This workflow:
+1. Fetches and displays subreddit information (description, rules, etc.)
+2. Fetches recent posts from the same subreddit
+
+This is particularly useful for:
+- Verifying posting rules before submitting content
+- Exploring new subreddits
+- Building automated workflows for content discovery and interaction
 
 ### Workflow for Headless Environments
 

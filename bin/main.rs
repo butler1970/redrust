@@ -11,6 +11,7 @@ use redrust::{
         },
         create::handle_create_command_with_client,
         posts::handle_posts_command_with_client,
+        subreddit_info::handle_subreddit_info_command_with_client,
         token_create::handle_token_create_command_with_client,
         user_create::handle_user_create_command_with_client,
     },
@@ -140,6 +141,11 @@ async fn main() {
         Commands::UserComment { thing_id, text } => {
             // Use the fully configured client
             handle_user_comment_command_with_client(thing_id, text, client.clone()).await
+        }
+        
+        Commands::SubredditInfo { subreddit } => {
+            // Use the fully configured client
+            handle_subreddit_info_command_with_client(subreddit, client.clone()).await
         }
     };
 
