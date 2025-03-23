@@ -1,16 +1,20 @@
 use crate::cli::{Cli, Commands};
 use clap::Parser;
 use log::error;
-use redrust::operations::{
-    api_create::handle_api_create_command,
-    browser_create::handle_browser_create_command,
-    comment::{
-        handle_browser_comment_command, handle_comment_command, handle_user_comment_command,
+use redrust::{
+    operations::{
+        api_create::handle_api_create_command_with_client,
+        browser_create::handle_browser_create_command_with_client,
+        comment::{
+            handle_browser_comment_command_with_client, handle_comment_command_with_client,
+            handle_user_comment_command_with_client,
+        },
+        create::handle_create_command_with_client,
+        posts::handle_posts_command_with_client,
+        token_create::handle_token_create_command_with_client,
+        user_create::handle_user_create_command_with_client,
     },
-    create::handle_create_command,
-    posts::handle_posts_command,
-    token_create::handle_token_create_command,
-    user_create::handle_user_create_command,
+    AppConfig,
 };
 
 mod cli;
@@ -20,6 +24,14 @@ async fn main() {
     std::env::set_var("RUST_LOG", "debug");
     env_logger::init();
 
+    // Load configuration from .env file and environment variables
+    let config = AppConfig::load();
+
+    // Create a RedditClient with the loaded configuration
+    // This will be passed to all operation handlers to ensure
+    // consistent configuration and credentials
+    let client = config.create_client();
+
     let cli = Cli::parse();
 
     let result = match cli.command {
@@ -27,51 +39,58 @@ async fn main() {
             count,
             subreddit,
             brief,
-        } => handle_posts_command(count, subreddit, brief).await,
+        } => handle_posts_command_with_client(count, subreddit, brief, client.clone()).await,
 
         Commands::Create {
             subreddit,
             title,
             text,
-            client_id,
-        } => handle_create_command(subreddit, title, text, client_id).await,
+        } => {
+            // Use the properly configured client that already has the credentials
+            handle_create_command_with_client(subreddit, title, text, client.clone()).await
+        }
 
         Commands::UserCreate {
             subreddit,
             title,
             text,
-            client_id,
-            username,
-            password,
         } => {
-            handle_user_create_command(subreddit, title, text, client_id, username, password).await
+            // Use the fully configured client
+            handle_user_create_command_with_client(subreddit, title, text, client.clone()).await
         }
 
         Commands::BrowserCreate {
             subreddit,
             title,
             text,
-            client_id,
             port,
-        } => handle_browser_create_command(subreddit, title, text, client_id, port).await,
+        } => {
+            // Use port from CLI or config, with fully configured client
+            let port_value = config.oauth_port.or(port);
+
+            handle_browser_create_command_with_client(
+                subreddit,
+                title,
+                text,
+                port_value,
+                client.clone(),
+            )
+            .await
+        }
 
         Commands::TokenCreate {
             subreddit,
             title,
             text,
-            client_id,
-            access_token,
-            refresh_token,
             expires_in,
         } => {
-            handle_token_create_command(
+            // Use the fully configured client with expires_in from CLI or default
+            handle_token_create_command_with_client(
                 subreddit,
                 title,
                 text,
-                client_id,
-                access_token,
-                refresh_token,
                 expires_in,
+                client.clone(),
             )
             .await
         }
@@ -80,43 +99,32 @@ async fn main() {
             subreddit,
             title,
             text,
-            client_id,
-            client_secret,
-            username,
-            password,
         } => {
-            handle_api_create_command(
-                subreddit,
-                title,
-                text,
-                client_id,
-                client_secret,
-                username,
-                password,
-            )
-            .await
+            // Use the fully configured client
+            handle_api_create_command_with_client(subreddit, title, text, client.clone()).await
         }
 
-        Commands::Comment {
-            thing_id,
-            text,
-            client_id,
-        } => handle_comment_command(thing_id, text, client_id).await,
+        Commands::Comment { thing_id, text } => {
+            // Use the fully configured client
+            handle_comment_command_with_client(thing_id, text, client.clone()).await
+        }
 
         Commands::BrowserComment {
             thing_id,
             text,
-            client_id,
             port,
-        } => handle_browser_comment_command(thing_id, text, client_id, port).await,
+        } => {
+            // Use port from CLI or config with fully configured client
+            let port_value = config.oauth_port.or(port);
 
-        Commands::UserComment {
-            thing_id,
-            text,
-            client_id,
-            username,
-            password,
-        } => handle_user_comment_command(thing_id, text, client_id, username, password).await,
+            handle_browser_comment_command_with_client(thing_id, text, port_value, client.clone())
+                .await
+        }
+
+        Commands::UserComment { thing_id, text } => {
+            // Use the fully configured client
+            handle_user_comment_command_with_client(thing_id, text, client.clone()).await
+        }
     };
 
     if let Err(err) = result {

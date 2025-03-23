@@ -240,7 +240,37 @@ pub async fn handle_posts_command(
         user_agent: None,
     };
 
+    // Create a new operation with the default client
     let operation = PostsOperation::new(options);
+    match operation.execute().await {
+        Ok(result) => {
+            // Print the formatted output to the console
+            print!("{}", result.formatted_output);
+            Ok(())
+        }
+        Err(err) => {
+            error!("Error fetching posts: {:?}", err);
+            Err(err)
+        }
+    }
+}
+
+/// CLI handler function for posts command that accepts a preconfigured client
+pub async fn handle_posts_command_with_client(
+    count: i32,
+    subreddit: Option<String>,
+    brief: bool,
+    client: RedditClient,
+) -> Result<(), crate::client::RedditClientError> {
+    let options = PostsOptions {
+        count,
+        subreddit,
+        brief,
+        user_agent: None,
+    };
+
+    // Create a new operation with the provided client
+    let operation = PostsOperation::with_client(options, client);
     match operation.execute().await {
         Ok(result) => {
             // Print the formatted output to the console

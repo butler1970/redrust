@@ -113,6 +113,34 @@ impl RedditClient {
         }
     }
 
+    /// Create a client from a configuration object
+    pub fn from_config(config: &crate::config::AppConfig) -> Self {
+        debug!("Creating RedditClient with user_agent: {}", config.user_agent);
+        let mut client = Self::with_user_agent(config.user_agent.clone());
+
+        // Use client_id to load token storage if available
+        if let Some(client_id) = &config.client_id {
+            // Try to load existing tokens first
+            if let Some(storage) = Self::load_token_storage(client_id) {
+                if storage.is_access_token_valid() {
+                    // If we have a valid access token, use it
+                    client.access_token = storage.access_token.clone();
+                }
+                client.token_storage = Some(storage);
+            } else {
+                // No stored tokens, create new storage
+                client.token_storage = Some(TokenStorage::new(client_id));
+            }
+        }
+
+        // If we have a direct access token, use it
+        if let Some(token) = &config.access_token {
+            client.access_token = Some(token.clone());
+        }
+
+        client
+    }
+
     /// Load stored tokens for a client ID if available
     pub fn with_stored_tokens(client_id: &str) -> Self {
         let mut client = Self::new();
@@ -884,13 +912,33 @@ impl RedditClient {
         subreddit: &str,
         limit: i32,
     ) -> Result<RedditRNewResponse, RedditClientError> {
+        // Check if we have an access token and use OAuth endpoint if we do
+        let base_url = if self.access_token.is_some() {
+            debug!("Using OAuth API endpoint with access token");
+            "https://oauth.reddit.com/r"
+        } else {
+            debug!("Using public API endpoint (no access token)");
+            "https://www.reddit.com/r"
+        };
+        
         let url = format!(
-            "https://www.reddit.com/r/{}/new.json?limit={}",
-            subreddit, limit
+            "{}/{}/new.json?limit={}",
+            base_url, subreddit, limit
         );
         debug!("Fetching from subreddit URL: {}", url);
-
-        let response = self.client.get(&url).send().await?;
+        debug!("Using User-Agent: {}", self.user_agent);
+        
+        // Create request builder
+        let mut req_builder = self.client.get(&url);
+        
+        // Add authorization header if we have a token
+        if let Some(token) = &self.access_token {
+            debug!("Adding Authorization header with token");
+            req_builder = req_builder.header("Authorization", format!("Bearer {}", token));
+        }
+        
+        // Send the request
+        let response = req_builder.send().await?;
         let status = response.status();
         debug!("Response status: {}", status);
 
@@ -1022,20 +1070,43 @@ impl RedditClient {
         &self,
         limit: i32,
     ) -> Result<RedditRNewResponse, RedditClientError> {
+        // Check if we have an access token and use OAuth endpoint if we do
+        let base_url = if self.access_token.is_some() {
+            debug!("Using OAuth API endpoint with access token");
+            "https://oauth.reddit.com"
+        } else {
+            debug!("Using public API endpoint (no access token)");
+            "https://www.reddit.com"
+        };
+        
         // Using the URL that shows new posts on the main feed
-        let url = format!("https://www.reddit.com/new.json?feed=home&limit={}", limit);
+        let url = format!("{}/new.json?feed=home&limit={}", base_url, limit);
         debug!("Fetching from URL: {}", url);
+        debug!("Using User-Agent: {}", self.user_agent);
+        
+        // Create request builder
+        let mut req_builder = self.client.get(&url);
+        
+        // Add authorization header if we have a token
+        if let Some(token) = &self.access_token {
+            debug!("Adding Authorization header with token");
+            req_builder = req_builder.header("Authorization", format!("Bearer {}", token));
+        }
 
         // Try to get a response from this endpoint
-        let response = match self.client.get(&url).send().await {
+        let response = match req_builder.send().await {
             Ok(resp) => resp,
             Err(e) => {
                 debug!("Error fetching {}: {:?}", url, e);
                 // If this fails, fall back to r/popular/new
-                let fallback_url =
-                    format!("https://www.reddit.com/r/popular/new.json?limit={}", limit);
+                let fallback_url = format!("{}/r/popular/new.json?limit={}", base_url, limit);
                 debug!("Falling back to URL: {}", fallback_url);
-                self.client.get(&fallback_url).send().await?
+                
+                let mut fallback_req = self.client.get(&fallback_url);
+                if let Some(token) = &self.access_token {
+                    fallback_req = fallback_req.header("Authorization", format!("Bearer {}", token));
+                }
+                fallback_req.send().await?
             }
         };
 
@@ -1073,7 +1144,7 @@ impl RedditClient {
                 after: parsed.data.after,
                 dist: parsed.data.dist,
                 modhash: parsed.data.modhash,
-                geo_filter: parsed.data.geo_filter.unwrap_or_default(),
+                geo_filter: parsed.data.geo_filter,
                 before: parsed.data.before,
                 // Convert each post entity
                 children: parsed

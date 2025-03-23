@@ -9,8 +9,6 @@ pub struct CommentOptions {
     pub thing_id: String,
     /// Text content of the comment
     pub text: String,
-    /// Reddit client ID for OAuth
-    pub client_id: String,
 }
 
 /// Result of a comment creation operation
@@ -51,24 +49,6 @@ impl CommentOperation {
             self.options.thing_id
         );
 
-        // Check if we already have a valid token (from browser_comment_command or user_comment_command)
-        // Only try to get a new token if we don't already have one
-        if self.client.access_token.is_none() {
-            match self.client.get_access_token(&self.options.client_id).await {
-                Ok(_) => info!("Successfully authenticated with Reddit API"),
-                Err(err) => {
-                    let message = format!("Failed to authenticate with Reddit API: {:?}", err);
-                    error!("{}", message);
-
-                    return Ok(CommentResult {
-                        success: false,
-                        comment_url: None,
-                        message,
-                    });
-                }
-            }
-        }
-
         // Now create the comment
         match self
             .client
@@ -104,19 +84,15 @@ impl CommentOperation {
     }
 }
 
-/// CLI handler function for comment command (attempts app-only auth, but will likely need OAuth)
-pub async fn handle_comment_command(
+/// CLI handler function for comment command with client
+pub async fn handle_comment_command_with_client(
     thing_id: String,
     text: String,
-    client_id: String,
+    client: RedditClient,
 ) -> Result<(), crate::client::RedditClientError> {
-    let options = CommentOptions {
-        thing_id,
-        text,
-        client_id,
-    };
+    let options = CommentOptions { thing_id, text };
 
-    let mut operation = CommentOperation::new(options);
+    let mut operation = CommentOperation::with_client(options, client);
     match operation.execute().await {
         Ok(result) => {
             if result.success {
@@ -133,102 +109,52 @@ pub async fn handle_comment_command(
     }
 }
 
-/// CLI handler function for browser comment command
-pub async fn handle_browser_comment_command(
+/// CLI handler function for browser comment command with client
+pub async fn handle_browser_comment_command_with_client(
     thing_id: String,
     text: String,
-    client_id: String,
-    port: Option<u16>,
+    _port: Option<u16>, // unused but kept for API compatibility
+    client: RedditClient,
 ) -> Result<(), crate::client::RedditClientError> {
-    let options = CommentOptions {
-        thing_id,
-        text,
-        client_id: client_id.clone(),
-    };
+    let options = CommentOptions { thing_id, text };
 
-    // Create a new client with stored tokens
-    let mut client = RedditClient::with_stored_tokens(&client_id);
-
-    // Authenticate with browser OAuth
-    info!("Authenticating with Reddit via browser OAuth...");
-    match client
-        .authenticate_with_stored_or_browser(&client_id, port, Some("identity read submit"))
-        .await
-    {
-        Ok(_) => {
-            info!("Successfully authenticated with Reddit API via browser OAuth (with 'submit' scope)");
-
-            // Now that we have an authenticated client with proper scopes, create the comment
-            let mut operation = CommentOperation::with_client(options, client);
-            match operation.execute().await {
-                Ok(result) => {
-                    if result.success {
-                        println!("{}", result.message);
-                    } else {
-                        eprintln!("{}", result.message);
-                    }
-                    Ok(())
-                }
-                Err(err) => {
-                    error!("Error executing comment operation: {:?}", err);
-                    Err(err)
-                }
+    let mut operation = CommentOperation::with_client(options, client);
+    match operation.execute().await {
+        Ok(result) => {
+            if result.success {
+                println!("{}", result.message);
+            } else {
+                eprintln!("{}", result.message);
             }
+            Ok(())
         }
         Err(err) => {
-            let message = format!("Failed to authenticate with Reddit: {:?}", err);
-            error!("{}", message);
+            error!("Error executing comment operation: {:?}", err);
             Err(err)
         }
     }
 }
 
-/// CLI handler function for user comment command
-pub async fn handle_user_comment_command(
+/// CLI handler function for user comment command with client
+pub async fn handle_user_comment_command_with_client(
     thing_id: String,
     text: String,
-    client_id: String,
-    username: String,
-    password: String,
+    client: RedditClient,
 ) -> Result<(), crate::client::RedditClientError> {
-    let options = CommentOptions {
-        thing_id,
-        text,
-        client_id: client_id.clone(),
-    };
+    let options = CommentOptions { thing_id, text };
 
-    // Create a new client
-    let mut client = RedditClient::new();
-
-    // Authenticate with username/password
-    info!("Authenticating with Reddit using username/password...");
-    match client
-        .authenticate_user(&client_id, &username, &password)
-        .await
-    {
-        Ok(_) => {
-            info!("Successfully authenticated with Reddit API using username/password (with 'submit' scope)");
-
-            // Now that we have an authenticated client with proper scopes, create the comment
-            let mut operation = CommentOperation::with_client(options, client);
-            match operation.execute().await {
-                Ok(result) => {
-                    if result.success {
-                        println!("{}", result.message);
-                    } else {
-                        eprintln!("{}", result.message);
-                    }
-                    Ok(())
-                }
-                Err(err) => {
-                    error!("Error executing comment operation: {:?}", err);
-                    Err(err)
-                }
+    let mut operation = CommentOperation::with_client(options, client);
+    match operation.execute().await {
+        Ok(result) => {
+            if result.success {
+                println!("{}", result.message);
+            } else {
+                eprintln!("{}", result.message);
             }
+            Ok(())
         }
         Err(err) => {
-            let message = format!("Failed to authenticate with Reddit: {:?}", err);
-            error!("{}", message);
+            error!("Error executing comment operation: {:?}", err);
             Err(err)
         }
     }
