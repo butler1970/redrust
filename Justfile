@@ -143,8 +143,8 @@ port := ""
 expires_in := "3600"
 
 # Examples:
-# Get 5 posts from r/rust in brief format
-example-posts-rust:
+# Get 5 posts from r/redrust in brief format
+example-posts-redrust:
     just posts 5 rust true
 
 # Get 10 posts from Reddit frontpage in detailed format
@@ -157,7 +157,7 @@ example-named-parameters:
     
 # Example of creating post with browser auth using named parameters
 example-browser-create-named:
-    just subreddit=alt2gofundme title="Testing Named Parameters" text="This post was created using Justs named parameters" browser-create-named
+    just subreddit=redrust title="Testing Named Parameters" text="This post was created using Justs named parameters" browser-create-named
 
 # Example of creating a comment with browser auth
 example-browser-comment:
@@ -167,7 +167,7 @@ example-browser-comment:
 example-workflow:
     #!/usr/bin/env bash
     echo "First, let's list some posts to find one to comment on:"
-    just posts 5 rust true
+    just posts 5 redrust true
     echo ""
     echo "Now copy a thing_id from above and use it to comment with:"
     echo "just thing_id=t3_POST_ID text=\"Your comment text\" browser-comment-named"
