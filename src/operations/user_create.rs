@@ -10,12 +10,6 @@ pub struct UserCreateOptions {
     pub title: String,
     /// Text content of the post
     pub text: String,
-    /// Reddit client ID for OAuth
-    pub client_id: String,
-    /// Reddit username
-    pub username: String,
-    /// Reddit password
-    pub password: String,
 }
 
 /// Result of a user-authenticated post creation operation
@@ -59,35 +53,11 @@ impl UserCreateOperation {
         };
 
         info!(
-            "Creating a new post in {} as user {}: '{}'",
-            display_sub, self.options.username, self.options.title
+            "Creating a new post in {}: '{}'",
+            display_sub, self.options.title
         );
 
-        // Authenticate with username and password
-        match self
-            .client
-            .authenticate_user(
-                &self.options.client_id,
-                &self.options.username,
-                &self.options.password,
-            )
-            .await
-        {
-            Ok(_) => info!(
-                "Successfully authenticated with Reddit API as user {}",
-                self.options.username
-            ),
-            Err(err) => {
-                let message = format!("Failed to authenticate with Reddit API: {:?}", err);
-                error!("{}", message);
-
-                return Ok(UserCreateResult {
-                    success: false,
-                    post_url: None,
-                    message,
-                });
-            }
-        }
+        // Assume client is already properly authenticated
 
         // Now create the post
         match self
@@ -123,25 +93,20 @@ impl UserCreateOperation {
     }
 }
 
-/// CLI handler function for user_create command
-pub async fn handle_user_create_command(
+/// CLI handler function for user_create command that accepts a preconfigured client
+pub async fn handle_user_create_command_with_client(
     subreddit: String,
     title: String,
     text: String,
-    client_id: String,
-    username: String,
-    password: String,
+    client: RedditClient,
 ) -> Result<(), crate::client::RedditClientError> {
     let options = UserCreateOptions {
         subreddit,
         title,
         text,
-        client_id,
-        username,
-        password,
     };
 
-    let mut operation = UserCreateOperation::new(options);
+    let mut operation = UserCreateOperation::with_client(options, client);
     match operation.execute().await {
         Ok(result) => {
             if result.success {

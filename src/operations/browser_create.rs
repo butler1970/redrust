@@ -10,8 +10,6 @@ pub struct BrowserCreateOptions {
     pub title: String,
     /// Text content of the post
     pub text: String,
-    /// Reddit client ID for OAuth
-    pub client_id: String,
     /// Port to use for the localhost callback (default: 8080)
     pub port: Option<u16>,
 }
@@ -39,9 +37,9 @@ pub struct BrowserCreateOperation {
 
 impl BrowserCreateOperation {
     /// Create a new browser-authenticated post creation operation with the provided options
-    pub fn new(options: BrowserCreateOptions) -> Self {
+    pub fn new(options: BrowserCreateOptions, client_id: &str) -> Self {
         // Use stored tokens if available
-        let client = RedditClient::with_stored_tokens(&options.client_id);
+        let client = RedditClient::with_stored_tokens(client_id);
         Self { options, client }
     }
 
@@ -62,57 +60,14 @@ impl BrowserCreateOperation {
         };
 
         info!(
-            "Creating a new post in {} via browser authentication: '{}'",
+            "Creating a new post in {}: '{}'",
             display_sub, self.options.title
         );
 
-        // Try to authenticate with stored tokens first, falling back to browser OAuth
-        info!("Checking for stored OAuth tokens...");
-
-        let used_stored_tokens;
-        match self
-            .client
-            .authenticate_with_stored_or_browser(
-                &self.options.client_id,
-                self.options.port,
-                Some("identity submit read"),
-            )
-            .await
-        {
-            Ok(_) => {
-                if self
-                    .client
-                    .token_storage
-                    .as_ref()
-                    .map_or(false, |s| s.is_access_token_valid())
-                {
-                    info!("Using existing OAuth token (no browser login required)");
-                    used_stored_tokens = true;
-                } else if self
-                    .client
-                    .token_storage
-                    .as_ref()
-                    .map_or(false, |s| s.has_refresh_token())
-                {
-                    info!("Successfully refreshed OAuth token (no browser login required)");
-                    used_stored_tokens = true;
-                } else {
-                    info!("Successfully authenticated with Reddit API via browser");
-                    used_stored_tokens = false;
-                }
-            }
-            Err(err) => {
-                let message = format!("Failed to authenticate with Reddit API: {:?}", err);
-                error!("{}", message);
-
-                return Ok(BrowserCreateResult {
-                    success: false,
-                    post_url: None,
-                    message,
-                    used_stored_tokens: false,
-                });
-            }
-        }
+        // Assume client is already properly authenticated
+        let used_stored_tokens = self.client.token_storage.as_ref().map_or(false, |s| {
+            s.is_access_token_valid() || s.has_refresh_token()
+        });
 
         // Now create the post
         info!("Authentication successful! Creating post...");
@@ -153,23 +108,22 @@ impl BrowserCreateOperation {
     }
 }
 
-/// CLI handler function for browser_create command
-pub async fn handle_browser_create_command(
+/// CLI handler function for browser_create command with client
+pub async fn handle_browser_create_command_with_client(
     subreddit: String,
     title: String,
     text: String,
-    client_id: String,
     port: Option<u16>,
+    client: RedditClient,
 ) -> Result<(), crate::client::RedditClientError> {
     let options = BrowserCreateOptions {
         subreddit,
         title,
         text,
-        client_id,
         port,
     };
 
-    let mut operation = BrowserCreateOperation::new(options);
+    let mut operation = BrowserCreateOperation::with_client(options, client);
     match operation.execute().await {
         Ok(result) => {
             if result.success {

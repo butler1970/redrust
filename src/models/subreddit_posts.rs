@@ -13,10 +13,8 @@ pub struct SubredditPostsResponse {
 pub struct SubredditPostCollection {
     pub after: Option<String>,
     pub dist: i32,
-    #[serde(default)]
-    pub modhash: String,
-    #[serde(default)]
-    pub geo_filter: String,
+    pub modhash: Option<String>,
+    pub geo_filter: Option<String>,
     pub children: Vec<SubredditPostEntity>,
     pub before: Option<String>,
 }

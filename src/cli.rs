@@ -37,6 +37,7 @@ pub enum Commands {
 
     /// Command to create a new post in a subreddit.
     /// Requires app-only authentication which won't allow posting.
+    /// Note: REDDIT_CLIENT_ID must be set in your environment or .env file.
     Create {
         /// The name of the subreddit to post to.
         #[arg(help = "Subreddit name", required = true)]
@@ -49,15 +50,12 @@ pub enum Commands {
         /// Text content of the post.
         #[arg(help = "Post text content", required = true)]
         text: String,
-
-        /// Your Reddit client ID.
-        #[arg(help = "Reddit client ID for OAuth", required = true)]
-        client_id: String,
     },
 
     /// Create a post using user authentication (username/password).
     /// For this to work, your app must be registered as a "script" type app.
     /// NOTE: This won't work for accounts that use Google OAuth login.
+    /// Note: REDDIT_CLIENT_ID, REDDIT_USERNAME, and REDDIT_PASSWORD must be set in your environment or .env file.
     UserCreate {
         /// The name of the subreddit to post to.
         #[arg(help = "Subreddit name", required = true)]
@@ -70,23 +68,12 @@ pub enum Commands {
         /// Text content of the post.
         #[arg(help = "Post text content", required = true)]
         text: String,
-
-        /// Your Reddit client ID.
-        #[arg(help = "Reddit client ID for OAuth", required = true)]
-        client_id: String,
-
-        /// Reddit username.
-        #[arg(help = "Reddit username", required = true)]
-        username: String,
-
-        /// Reddit password.
-        #[arg(help = "Reddit password", required = true)]
-        password: String,
     },
 
     /// Create a post using browser-based OAuth authentication.
     /// RECOMMENDED for accounts using Google OAuth login.
     /// Requires creating an installed app in Reddit preferences first.
+    /// Note: REDDIT_CLIENT_ID must be set in your environment or .env file.
     BrowserCreate {
         /// The name of the subreddit to post to.
         #[arg(help = "Subreddit name", required = true)]
@@ -100,10 +87,6 @@ pub enum Commands {
         #[arg(help = "Post text content", required = true)]
         text: String,
 
-        /// Your Reddit API client ID.
-        #[arg(help = "Client ID from your Reddit installed app", required = true)]
-        client_id: String,
-
         /// Port to use for the localhost callback (default: 8080).
         #[arg(help = "Port to use for the OAuth callback", required = false)]
         port: Option<u16>,
@@ -112,6 +95,8 @@ pub enum Commands {
     /// Create a post using manual tokens (for headless environments).
     /// Use this when you have obtained tokens separately and want to use
     /// them without browser authentication.
+    /// Note: REDDIT_CLIENT_ID, REDDIT_ACCESS_TOKEN, and optionally REDDIT_REFRESH_TOKEN
+    /// must be set in your environment or .env file.
     TokenCreate {
         /// The name of the subreddit to post to.
         #[arg(help = "Subreddit name", required = true)]
@@ -125,18 +110,6 @@ pub enum Commands {
         #[arg(help = "Post text content", required = true)]
         text: String,
 
-        /// Your Reddit API client ID.
-        #[arg(help = "Client ID from your Reddit app", required = true)]
-        client_id: String,
-
-        /// The access token obtained from Reddit OAuth.
-        #[arg(help = "OAuth access token", required = true)]
-        access_token: String,
-
-        /// The refresh token obtained from Reddit OAuth (if available).
-        #[arg(help = "OAuth refresh token", required = false)]
-        refresh_token: Option<String>,
-
         /// Time in seconds until the access token expires.
         #[arg(help = "Token expiration time in seconds", default_value = "3600")]
         expires_in: u64,
@@ -145,6 +118,8 @@ pub enum Commands {
     /// Create a post using a script application's API credentials.
     /// Works with any Reddit account (including Google OAuth logins).
     /// Requires creating a script app in Reddit preferences first.
+    /// Note: REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET, REDDIT_USERNAME, and REDDIT_PASSWORD
+    /// must be set in your environment or .env file.
     ApiCreate {
         /// The name of the subreddit to post to.
         #[arg(help = "Subreddit name", required = true)]
@@ -157,26 +132,11 @@ pub enum Commands {
         /// Text content of the post.
         #[arg(help = "Post text content", required = true)]
         text: String,
-
-        /// Your Reddit API client ID.
-        #[arg(help = "Client ID from your Reddit script app", required = true)]
-        client_id: String,
-
-        /// Your Reddit API client secret.
-        #[arg(help = "Client secret from your Reddit script app", required = true)]
-        client_secret: String,
-
-        /// Your Reddit username.
-        #[arg(help = "Your Reddit username", required = true)]
-        username: String,
-
-        /// Your Reddit password.
-        #[arg(help = "Your Reddit password", required = true)]
-        password: String,
     },
 
     /// Create a comment on a post or another comment.
     /// Requires full OAuth authentication (same as posting).
+    /// Note: REDDIT_CLIENT_ID must be set in your environment or .env file.
     Comment {
         /// The fullname of the parent thing (post or comment) to comment on.
         /// Format is "t3_" followed by post ID for posts, or "t1_" followed by comment ID for comments.
@@ -189,14 +149,11 @@ pub enum Commands {
         /// Text content of the comment.
         #[arg(help = "Comment text content", required = true)]
         text: String,
-
-        /// Your Reddit client ID.
-        #[arg(help = "Reddit client ID for OAuth", required = true)]
-        client_id: String,
     },
 
     /// Create a comment using browser-based OAuth authentication.
     /// RECOMMENDED for accounts using Google OAuth login.
+    /// Note: REDDIT_CLIENT_ID must be set in your environment or .env file.
     BrowserComment {
         /// The fullname of the parent thing (post or comment) to comment on.
         /// Format is "t3_" followed by post ID for posts, or "t1_" followed by comment ID for comments.
@@ -210,10 +167,6 @@ pub enum Commands {
         #[arg(help = "Comment text content", required = true)]
         text: String,
 
-        /// Your Reddit API client ID.
-        #[arg(help = "Client ID from your Reddit installed app", required = true)]
-        client_id: String,
-
         /// Port to use for the localhost callback (default: 8080).
         #[arg(help = "Port to use for the OAuth callback", required = false)]
         port: Option<u16>,
@@ -222,6 +175,7 @@ pub enum Commands {
     /// Create a comment using user authentication (username/password).
     /// For this to work, your app must be registered as a "script" type app.
     /// NOTE: This won't work for accounts that use Google OAuth login.
+    /// Note: REDDIT_CLIENT_ID, REDDIT_USERNAME, and REDDIT_PASSWORD must be set in your environment or .env file.
     UserComment {
         /// The fullname of the parent thing (post or comment) to comment on.
         /// Format is "t3_" followed by post ID for posts, or "t1_" followed by comment ID for comments.
@@ -234,17 +188,5 @@ pub enum Commands {
         /// Text content of the comment.
         #[arg(help = "Comment text content", required = true)]
         text: String,
-
-        /// Your Reddit client ID.
-        #[arg(help = "Reddit client ID for OAuth", required = true)]
-        client_id: String,
-
-        /// Reddit username.
-        #[arg(help = "Reddit username", required = true)]
-        username: String,
-
-        /// Reddit password.
-        #[arg(help = "Reddit password", required = true)]
-        password: String,
     },
 }

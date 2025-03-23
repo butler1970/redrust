@@ -18,10 +18,8 @@ pub struct RedditRNewResponse {
 pub struct RedditPostCollection {
     pub after: Option<String>,
     pub dist: i32,
-    #[serde(default)]
-    pub modhash: String,
-    #[serde(default)]
-    pub geo_filter: String,
+    pub modhash: Option<String>,
+    pub geo_filter: Option<String>,
     pub children: Vec<RedditPostEntity>,
     pub before: Option<String>,
 }

@@ -10,13 +10,7 @@ pub struct TokenCreateOptions {
     pub title: String,
     /// Text content of the post
     pub text: String,
-    /// Reddit client ID for OAuth
-    pub client_id: String,
-    /// The access token obtained from Reddit OAuth
-    pub access_token: String,
-    /// The refresh token obtained from Reddit OAuth (if available)
-    pub refresh_token: Option<String>,
-    /// Time in seconds until the access token expires
+    /// Time in seconds until the access token expires (when using with_client)
     pub expires_in: u64,
 }
 
@@ -65,26 +59,6 @@ impl TokenCreateOperation {
             display_sub, self.options.title
         );
 
-        // Set the tokens directly
-        match self.client.set_tokens(
-            &self.options.client_id,
-            &self.options.access_token,
-            self.options.refresh_token.as_deref(),
-            self.options.expires_in,
-        ) {
-            Ok(_) => info!("Successfully set manual tokens"),
-            Err(err) => {
-                let message = format!("Failed to set tokens: {:?}", err);
-                error!("{}", message);
-
-                return Ok(TokenCreateResult {
-                    success: false,
-                    post_url: None,
-                    message,
-                });
-            }
-        }
-
         // Now create the post
         info!("Using provided token to create post...");
         match self
@@ -120,27 +94,22 @@ impl TokenCreateOperation {
     }
 }
 
-/// CLI handler function for token_create command
-pub async fn handle_token_create_command(
+/// CLI handler function for token_create command with client
+pub async fn handle_token_create_command_with_client(
     subreddit: String,
     title: String,
     text: String,
-    client_id: String,
-    access_token: String,
-    refresh_token: Option<String>,
     expires_in: u64,
+    client: RedditClient,
 ) -> Result<(), crate::client::RedditClientError> {
     let options = TokenCreateOptions {
         subreddit,
         title,
         text,
-        client_id,
-        access_token,
-        refresh_token,
         expires_in,
     };
 
-    let mut operation = TokenCreateOperation::new(options);
+    let mut operation = TokenCreateOperation::with_client(options, client);
     match operation.execute().await {
         Ok(result) => {
             if result.success {
