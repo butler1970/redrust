@@ -92,28 +92,44 @@ api-create-named:
 
 # Create a comment on a post or another comment (basic method)
 comment thing_id text client_id:
+    #!/usr/bin/env bash
+    # Disable history expansion to prevent ! interpretation
+    set +H
     cargo run -- comment "{{thing_id}}" "{{text}}" "{{client_id}}"
 
 # Create a comment using named parameters
 comment-named:
+    #!/usr/bin/env bash
+    # Disable history expansion to prevent ! interpretation
+    set +H
     cargo run -- comment "{{thing_id}}" "{{text}}" "{{client_id}}"
 
 # Create a comment with browser-based OAuth authentication
 browser-comment thing_id text client_id port='':
     #!/usr/bin/env bash
+    # Disable history expansion to prevent ! interpretation
+    set +H
     cargo run -- browser-comment "{{thing_id}}" "{{text}}" "{{client_id}}" $([ -n "{{port}}" ] && echo "--port {{port}}")
 
 # Create a comment with browser-based OAuth authentication using named parameters
 browser-comment-named:
     #!/usr/bin/env bash
+    # Disable history expansion to prevent ! interpretation
+    set +H
     cargo run -- browser-comment "{{thing_id}}" "{{text}}" "{{client_id}}" $([ -n "{{port}}" ] && echo "--port {{port}}")
 
 # Create a comment with user authentication (username/password)
 user-comment thing_id text client_id username password:
+    #!/usr/bin/env bash
+    # Disable history expansion to prevent ! interpretation
+    set +H
     cargo run -- user-comment "{{thing_id}}" "{{text}}" "{{client_id}}" "{{username}}" "{{password}}"
 
 # Create a comment with user authentication using named parameters
 user-comment-named:
+    #!/usr/bin/env bash
+    # Disable history expansion to prevent ! interpretation
+    set +H
     cargo run -- user-comment "{{thing_id}}" "{{text}}" "{{client_id}}" "{{username}}" "{{password}}"
 
 # Set default values for named parameter commands, reading from environment variables when available
