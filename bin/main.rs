@@ -34,11 +34,8 @@ async fn main() {
         }
     }
 
-    // Directly specify environment variables to ensure they're set correctly
-    std::env::set_var(
-        "REDDIT_USER_AGENT",
-        "redrust/1.0 (by /u/Aggravating-Fix-3871)",
-    );
+    // User agent must be provided in the .env file or environment variable
+    // No default user agent is provided by the application
 
     std::env::set_var("RUST_LOG", "debug");
     env_logger::init();

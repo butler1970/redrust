@@ -50,12 +50,11 @@ pub struct PostsOperation {
 impl PostsOperation {
     /// Create a new posts operation with the provided options
     pub fn new(options: PostsOptions) -> Self {
-        // Create a client with user agent if provided, otherwise use a default
+        // Create a client with user agent if provided, otherwise use an empty one
+        // Note: A user agent must be set in the environment or .env file
         let client = match &options.user_agent {
             Some(user_agent) => RedditClient::with_user_agent(user_agent.clone()),
-            None => RedditClient::with_user_agent(
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36 redrust/1.0 (by /u/Aggravating-Fix-3871)".to_string()
-            ),
+            None => RedditClient::new(),
         };
 
         Self { options, client }

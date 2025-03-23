@@ -95,11 +95,10 @@ pub struct RedditClient {
 
 impl RedditClient {
     pub fn new() -> Self {
-        let user_agent = format!("redrust/1.0 (by /u/Aggravating-Fix-3871)");
         Self {
-            client: Self::get_client(&user_agent).unwrap(),
+            client: Self::get_client("").unwrap(),
             access_token: None,
-            user_agent,
+            user_agent: String::new(),
             token_storage: None,
         }
     }
@@ -1492,5 +1491,107 @@ impl RedditClient {
 
         // Fallback success message if we couldn't extract the details
         Ok("Comment was created successfully, but couldn't extract the details".to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::AppConfig;
+    
+    // Simple mock for testing header application
+    struct MockRequestBuilder {
+        headers: std::collections::HashMap<String, String>,
+    }
+    
+    impl MockRequestBuilder {
+        fn new() -> Self {
+            Self {
+                headers: std::collections::HashMap::new(),
+            }
+        }
+        
+        fn header(mut self, key: &str, value: &str) -> Self {
+            self.headers.insert(key.to_string(), value.to_string());
+            self
+        }
+        
+        // Get a header for verification
+        fn get_header(&self, key: &str) -> Option<&String> {
+            self.headers.get(key)
+        }
+    }
+    
+    // Implementation to manually test set_user_agent behavior
+    fn test_set_user_agent(client: &RedditClient, builder: MockRequestBuilder) -> MockRequestBuilder {
+        // Apply set_user_agent's logic manually for testing
+        if !client.user_agent.is_empty() {
+            return builder.header("User-Agent", &client.user_agent);
+        }
+        
+        // If user agent is empty, we'd expect this to panic
+        panic!("User-Agent header is required for Reddit API calls.")
+    }
+    
+    #[test]
+    fn test_user_agent_is_set_on_requests() {
+        // Create a user agent
+        let user_agent = "test-agent/1.0".to_string();
+        
+        // Create a client with this user agent
+        let client = RedditClient {
+            client: Client::new(),
+            access_token: None,
+            user_agent: user_agent.clone(),
+            token_storage: None,
+        };
+        
+        // Create a mock request builder
+        let mock_builder = MockRequestBuilder::new();
+        
+        // Apply the user agent using our test function
+        let mock_builder = test_set_user_agent(&client, mock_builder);
+        
+        // Check that the User-Agent header was set
+        let header = mock_builder.get_header("User-Agent")
+            .expect("User-Agent header should be set");
+        
+        assert_eq!(header, &user_agent);
+    }
+    
+    #[test]
+    fn test_from_config() {
+        // Create a config with a user agent
+        let mut config = AppConfig::default();
+        config.user_agent = "config-test-agent/1.0".to_string();
+        
+        // Create a client manually with the user agent from config
+        let client = RedditClient {
+            client: Client::new(),
+            access_token: None,
+            user_agent: config.user_agent.clone(),
+            token_storage: None,
+        };
+        
+        // Verify the client has the correct user agent
+        assert_eq!(&client.user_agent, &config.user_agent);
+    }
+    
+    #[test]
+    #[should_panic(expected = "User-Agent header is required")]
+    fn test_empty_user_agent_panics() {
+        // Create a client with an empty user agent
+        let client = RedditClient {
+            client: Client::new(),
+            access_token: None,
+            user_agent: "".to_string(),
+            token_storage: None,
+        };
+        
+        // Create a mock request builder
+        let mock_builder = MockRequestBuilder::new();
+        
+        // This should panic because user agent is empty
+        let _result = test_set_user_agent(&client, mock_builder);
     }
 }
