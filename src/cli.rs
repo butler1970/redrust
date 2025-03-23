@@ -174,4 +174,77 @@ pub enum Commands {
         #[arg(help = "Your Reddit password", required = true)]
         password: String,
     },
+
+    /// Create a comment on a post or another comment.
+    /// Requires full OAuth authentication (same as posting).
+    Comment {
+        /// The fullname of the parent thing (post or comment) to comment on.
+        /// Format is "t3_" followed by post ID for posts, or "t1_" followed by comment ID for comments.
+        #[arg(
+            help = "Reddit thing ID to comment on (e.g., 't3_abcdef' for posts)",
+            required = true
+        )]
+        thing_id: String,
+
+        /// Text content of the comment.
+        #[arg(help = "Comment text content", required = true)]
+        text: String,
+
+        /// Your Reddit client ID.
+        #[arg(help = "Reddit client ID for OAuth", required = true)]
+        client_id: String,
+    },
+
+    /// Create a comment using browser-based OAuth authentication.
+    /// RECOMMENDED for accounts using Google OAuth login.
+    BrowserComment {
+        /// The fullname of the parent thing (post or comment) to comment on.
+        /// Format is "t3_" followed by post ID for posts, or "t1_" followed by comment ID for comments.
+        #[arg(
+            help = "Reddit thing ID to comment on (e.g., 't3_abcdef' for posts)",
+            required = true
+        )]
+        thing_id: String,
+
+        /// Text content of the comment.
+        #[arg(help = "Comment text content", required = true)]
+        text: String,
+
+        /// Your Reddit API client ID.
+        #[arg(help = "Client ID from your Reddit installed app", required = true)]
+        client_id: String,
+
+        /// Port to use for the localhost callback (default: 8080).
+        #[arg(help = "Port to use for the OAuth callback", required = false)]
+        port: Option<u16>,
+    },
+
+    /// Create a comment using user authentication (username/password).
+    /// For this to work, your app must be registered as a "script" type app.
+    /// NOTE: This won't work for accounts that use Google OAuth login.
+    UserComment {
+        /// The fullname of the parent thing (post or comment) to comment on.
+        /// Format is "t3_" followed by post ID for posts, or "t1_" followed by comment ID for comments.
+        #[arg(
+            help = "Reddit thing ID to comment on (e.g., 't3_abcdef' for posts)",
+            required = true
+        )]
+        thing_id: String,
+
+        /// Text content of the comment.
+        #[arg(help = "Comment text content", required = true)]
+        text: String,
+
+        /// Your Reddit client ID.
+        #[arg(help = "Reddit client ID for OAuth", required = true)]
+        client_id: String,
+
+        /// Reddit username.
+        #[arg(help = "Reddit username", required = true)]
+        username: String,
+
+        /// Reddit password.
+        #[arg(help = "Reddit password", required = true)]
+        password: String,
+    },
 }

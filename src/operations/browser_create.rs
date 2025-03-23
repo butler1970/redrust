@@ -127,7 +127,8 @@ impl BrowserCreateOperation {
         {
             Ok(url) => {
                 let message = format!("Post created successfully! URL: {}", url);
-                info!("{}", message);
+                // We don't need to log here as the handler function will log the message
+                // Removed: info!("{}", message);
 
                 Ok(BrowserCreateResult {
                     success: true,
@@ -138,7 +139,8 @@ impl BrowserCreateOperation {
             }
             Err(err) => {
                 let message = format!("Error creating post: {:?}", err);
-                error!("{}", message);
+                // We don't need to log here as the handler function will log the message
+                // Removed: error!("{}", message);
 
                 Ok(BrowserCreateResult {
                     success: false,

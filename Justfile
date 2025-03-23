@@ -39,26 +39,12 @@ help:
 # Fetch posts from a subreddit or the public frontpage
 posts count subreddit='' brief='':
     #!/usr/bin/env bash
-    ARGS="posts --count {{count}}"
-    if [ -n "{{subreddit}}" ]; then
-        ARGS="$ARGS --subreddit {{subreddit}}"
-    fi
-    if [ "{{brief}}" = "true" ]; then
-        ARGS="$ARGS --brief"
-    fi
-    cargo run -- $ARGS
+    cargo run -- posts --count {{count}} $([ -n "{{subreddit}}" ] && echo "--subreddit {{subreddit}}") $([ "{{brief}}" = "true" ] && echo "--brief")
 
 # Fetch posts with named parameters
 posts-named:
     #!/usr/bin/env bash
-    ARGS="posts --count {{count}}"
-    if [ -n "{{subreddit}}" ]; then
-        ARGS="$ARGS --subreddit {{subreddit}}"
-    fi
-    if [ "{{brief}}" = "true" ]; then
-        ARGS="$ARGS --brief"
-    fi
-    cargo run -- $ARGS
+    cargo run -- posts --count {{count}} $([ -n "{{subreddit}}" ] && echo "--subreddit {{subreddit}}") $([ "{{brief}}" = "true" ] && echo "--brief")
 
 # Create a post with application-only authentication
 create subreddit title text client_id:
@@ -79,40 +65,22 @@ user-create-named:
 # Create a post with browser-based OAuth authentication
 browser-create subreddit title text client_id port='':
     #!/usr/bin/env bash
-    ARGS="browser-create \"{{subreddit}}\" \"{{title}}\" \"{{text}}\" \"{{client_id}}\""
-    if [ -n "{{port}}" ]; then
-        ARGS="$ARGS --port {{port}}"
-    fi
-    cargo run -- $ARGS
+    cargo run -- browser-create "{{subreddit}}" "{{title}}" "{{text}}" "{{client_id}}" $([ -n "{{port}}" ] && echo "--port {{port}}")
 
 # Create a post with browser-based OAuth authentication using named parameters
 browser-create-named:
     #!/usr/bin/env bash
-    ARGS="browser-create \"{{subreddit}}\" \"{{title}}\" \"{{text}}\" \"{{client_id}}\""
-    if [ -n "{{port}}" ]; then
-        ARGS="$ARGS --port {{port}}"
-    fi
-    cargo run -- $ARGS
+    cargo run -- browser-create "{{subreddit}}" "{{title}}" "{{text}}" "{{client_id}}" $([ -n "{{port}}" ] && echo "--port {{port}}")
 
 # Create a post with manual OAuth tokens
 token-create subreddit title text client_id access_token refresh_token='' expires_in='3600':
     #!/usr/bin/env bash
-    ARGS="token-create \"{{subreddit}}\" \"{{title}}\" \"{{text}}\" \"{{client_id}}\" \"{{access_token}}\""
-    if [ -n "{{refresh_token}}" ]; then
-        ARGS="$ARGS \"{{refresh_token}}\""
-    fi
-    ARGS="$ARGS --expires-in {{expires_in}}"
-    cargo run -- $ARGS
+    cargo run -- token-create "{{subreddit}}" "{{title}}" "{{text}}" "{{client_id}}" "{{access_token}}" $([ -n "{{refresh_token}}" ] && echo "{{refresh_token}}") --expires-in {{expires_in}}
 
 # Create a post with manual OAuth tokens using named parameters
 token-create-named:
     #!/usr/bin/env bash
-    ARGS="token-create \"{{subreddit}}\" \"{{title}}\" \"{{text}}\" \"{{client_id}}\" \"{{access_token}}\""
-    if [ -n "{{refresh_token}}" ]; then
-        ARGS="$ARGS \"{{refresh_token}}\""
-    fi
-    ARGS="$ARGS --expires-in {{expires_in}}"
-    cargo run -- $ARGS
+    cargo run -- token-create "{{subreddit}}" "{{title}}" "{{text}}" "{{client_id}}" "{{access_token}}" $([ -n "{{refresh_token}}" ] && echo "{{refresh_token}}") --expires-in {{expires_in}}
 
 # Create a post with script application API credentials
 api-create subreddit title text client_id client_secret username password:
@@ -122,20 +90,47 @@ api-create subreddit title text client_id client_secret username password:
 api-create-named:
     cargo run -- api-create "{{subreddit}}" "{{title}}" "{{text}}" "{{client_id}}" "{{client_secret}}" "{{username}}" "{{password}}"
 
-# Set default values for named parameter commands
+# Create a comment on a post or another comment (basic method)
+comment thing_id text client_id:
+    cargo run -- comment "{{thing_id}}" "{{text}}" "{{client_id}}"
+
+# Create a comment using named parameters
+comment-named:
+    cargo run -- comment "{{thing_id}}" "{{text}}" "{{client_id}}"
+
+# Create a comment with browser-based OAuth authentication
+browser-comment thing_id text client_id port='':
+    #!/usr/bin/env bash
+    cargo run -- browser-comment "{{thing_id}}" "{{text}}" "{{client_id}}" $([ -n "{{port}}" ] && echo "--port {{port}}")
+
+# Create a comment with browser-based OAuth authentication using named parameters
+browser-comment-named:
+    #!/usr/bin/env bash
+    cargo run -- browser-comment "{{thing_id}}" "{{text}}" "{{client_id}}" $([ -n "{{port}}" ] && echo "--port {{port}}")
+
+# Create a comment with user authentication (username/password)
+user-comment thing_id text client_id username password:
+    cargo run -- user-comment "{{thing_id}}" "{{text}}" "{{client_id}}" "{{username}}" "{{password}}"
+
+# Create a comment with user authentication using named parameters
+user-comment-named:
+    cargo run -- user-comment "{{thing_id}}" "{{text}}" "{{client_id}}" "{{username}}" "{{password}}"
+
+# Set default values for named parameter commands, reading from environment variables when available
 count := "10"
 subreddit := ""
 brief := "false"
 title := ""
 text := ""
-client_id := ""
-username := ""
-password := ""
-port := ""
-access_token := ""
-refresh_token := ""
-expires_in := "3600"
-client_secret := ""
+thing_id := env_var_or_default("REDDIT_THING_ID", "")
+client_id := env_var_or_default("REDDIT_CLIENT_ID", "")
+username := env_var_or_default("REDDIT_USERNAME", "")
+password := env_var_or_default("REDDIT_PASSWORD", "")
+port := env_var_or_default("REDDIT_OAUTH_PORT", "")
+access_token := env_var_or_default("REDDIT_ACCESS_TOKEN", "")
+refresh_token := env_var_or_default("REDDIT_REFRESH_TOKEN", "")
+expires_in := env_var_or_default("REDDIT_TOKEN_EXPIRES_IN", "3600")
+client_secret := env_var_or_default("REDDIT_CLIENT_SECRET", "")
 
 # Examples:
 # Get 5 posts from r/rust in brief format
@@ -152,4 +147,17 @@ example-named-parameters:
     
 # Example of creating post with browser auth using named parameters
 example-browser-create-named:
-    just subreddit=rust title="Testing Named Parameters" text="This post was created using Just's named parameters" client_id=YOUR_CLIENT_ID browser-create-named
+    just subreddit=rust title="Testing Named Parameters" text="This post was created using Justs named parameters" client_id=YOUR_CLIENT_ID browser-create-named
+
+# Example of creating a comment with browser auth
+example-browser-comment:
+    just thing_id=t3_POSTID text="This is a test comment" browser-comment-named
+
+# Get posts and then comment workflow - this will list posts and inform how to comment on them
+example-workflow:
+    #!/usr/bin/env bash
+    echo "First, let's list some posts to find one to comment on:"
+    just posts 5 rust true
+    echo ""
+    echo "Now copy a thing_id from above and use it to comment with:"
+    echo "just thing_id=t3_POST_ID text=\"Your comment text\" browser-comment-named"

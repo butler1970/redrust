@@ -2,6 +2,7 @@
 
 pub mod api_create;
 pub mod browser_create;
+pub mod comment;
 pub mod create;
 pub mod posts;
 pub mod token_create;
