@@ -115,7 +115,10 @@ impl RedditClient {
 
     /// Create a client from a configuration object
     pub fn from_config(config: &crate::config::AppConfig) -> Self {
-        debug!("Creating RedditClient with user_agent: {}", config.user_agent);
+        debug!(
+            "Creating RedditClient with user_agent: {}",
+            config.user_agent
+        );
         let mut client = Self::with_user_agent(config.user_agent.clone());
 
         // Use client_id to load token storage if available
@@ -920,23 +923,20 @@ impl RedditClient {
             debug!("Using public API endpoint (no access token)");
             "https://www.reddit.com/r"
         };
-        
-        let url = format!(
-            "{}/{}/new.json?limit={}",
-            base_url, subreddit, limit
-        );
+
+        let url = format!("{}/{}/new.json?limit={}", base_url, subreddit, limit);
         debug!("Fetching from subreddit URL: {}", url);
         debug!("Using User-Agent: {}", self.user_agent);
-        
+
         // Create request builder
         let mut req_builder = self.client.get(&url);
-        
+
         // Add authorization header if we have a token
         if let Some(token) = &self.access_token {
             debug!("Adding Authorization header with token");
             req_builder = req_builder.header("Authorization", format!("Bearer {}", token));
         }
-        
+
         // Send the request
         let response = req_builder.send().await?;
         let status = response.status();
@@ -1078,15 +1078,15 @@ impl RedditClient {
             debug!("Using public API endpoint (no access token)");
             "https://www.reddit.com"
         };
-        
+
         // Using the URL that shows new posts on the main feed
         let url = format!("{}/new.json?feed=home&limit={}", base_url, limit);
         debug!("Fetching from URL: {}", url);
         debug!("Using User-Agent: {}", self.user_agent);
-        
+
         // Create request builder
         let mut req_builder = self.client.get(&url);
-        
+
         // Add authorization header if we have a token
         if let Some(token) = &self.access_token {
             debug!("Adding Authorization header with token");
@@ -1101,10 +1101,11 @@ impl RedditClient {
                 // If this fails, fall back to r/popular/new
                 let fallback_url = format!("{}/r/popular/new.json?limit={}", base_url, limit);
                 debug!("Falling back to URL: {}", fallback_url);
-                
+
                 let mut fallback_req = self.client.get(&fallback_url);
                 if let Some(token) = &self.access_token {
-                    fallback_req = fallback_req.header("Authorization", format!("Bearer {}", token));
+                    fallback_req =
+                        fallback_req.header("Authorization", format!("Bearer {}", token));
                 }
                 fallback_req.send().await?
             }

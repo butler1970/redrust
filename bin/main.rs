@@ -1,5 +1,5 @@
-use crate::cli::{Cli, Commands};
 use clap::Parser;
+use cli::{Cli, Commands};
 use log::error;
 use redrust::{
     operations::{
@@ -21,6 +21,25 @@ mod cli;
 
 #[tokio::main]
 async fn main() {
+    // Ensure we're in the project root directory for loading .env
+    let exe_path = std::env::current_exe().unwrap_or_default();
+    let exe_dir = exe_path
+        .parent()
+        .unwrap_or_else(|| std::path::Path::new("."));
+
+    // If we're in target/debug or similar, go up two levels to project root
+    if exe_dir.ends_with("debug") || exe_dir.ends_with("release") {
+        if let Some(project_dir) = exe_dir.parent().and_then(|d| d.parent()) {
+            std::env::set_current_dir(project_dir).ok();
+        }
+    }
+
+    // Directly specify environment variables to ensure they're set correctly
+    std::env::set_var(
+        "REDDIT_USER_AGENT",
+        "redrust/1.0 (by /u/Aggravating-Fix-3871)",
+    );
+
     std::env::set_var("RUST_LOG", "debug");
     env_logger::init();
 

@@ -47,10 +47,14 @@ impl Default for AppConfig {
 impl AppConfig {
     /// Load configuration from environment variables and .env file
     pub fn load() -> Self {
-        // Try to load .env file, but continue even if it doesn't exist
-        match dotenv() {
-            Ok(_) => info!("Loaded environment from .env file"),
-            Err(_) => info!("No .env file found, using system environment variables only"),
+        // Try to load .env file from both current directory and project root
+        // This helps when running from the bin directory
+        if let Ok(_) = dotenv() {
+            info!("Loaded environment from .env file");
+        } else if let Ok(_) = dotenv::from_filename("../.env") {
+            info!("Loaded environment from ../.env file");
+        } else {
+            info!("No .env file found, using system environment variables only");
         }
 
         let mut config = Self::default();
@@ -74,7 +78,11 @@ impl AppConfig {
 
         // User agent - use environment variable if available, otherwise use default
         if let Ok(user_agent) = env::var("REDDIT_USER_AGENT") {
-            config.user_agent = user_agent;
+            // Remove quotes if present
+            let clean_user_agent = user_agent.trim_matches('"').to_string();
+            config.user_agent = clean_user_agent;
+        } else {
+            config.user_agent = "redrust/1.0 (by /u/Aggravating-Fix-3871)".to_string();
         }
 
         // OAuth port - parse as u16 if provided

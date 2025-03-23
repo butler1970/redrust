@@ -3,6 +3,10 @@ name = "redrust"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "redrust"
+path = "bin/main.rs"
+
 [dependencies]
 reqwest = { version = "0.11", features = ["json", "rustls-tls"], default-features = false }
 serde = { version = "1.0", features = ["derive"] }
