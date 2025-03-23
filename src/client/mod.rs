@@ -1319,4 +1319,106 @@ impl RedditClient {
             "Failed to create post. Reddit requires user authentication with proper scopes for this operation.".to_string()
         ))
     }
+
+    /// Create a comment on a post or another comment.
+    ///
+    /// # Arguments
+    /// * `thing_id` - The fullname of the parent thing (post or comment) to comment on
+    ///   Format is "t3_" followed by post ID for posts, or "t1_" followed by comment ID for comments
+    /// * `text` - The comment text content
+    ///
+    /// # Note
+    /// This method requires full OAuth user authentication with the 'submit' scope.
+    /// The application-only auth from get_access_token() is not sufficient for commenting.
+    pub async fn create_comment(
+        &self,
+        thing_id: &str,
+        text: &str,
+    ) -> Result<String, RedditClientError> {
+        // Ensure we have an access token
+        let token = match &self.access_token {
+            Some(token) => token,
+            None => {
+                return Err(RedditClientError::ApiError(
+                    "No access token available. Call get_access_token() first.".to_string(),
+                ))
+            }
+        };
+
+        let mut params = HashMap::new();
+        params.insert("api_type", "json");
+        params.insert("thing_id", thing_id);
+        params.insert("text", text);
+
+        let url = "https://oauth.reddit.com/api/comment";
+
+        let response = self
+            .client
+            .post(url)
+            .header("Authorization", format!("Bearer {}", token))
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .form(&params)
+            .send()
+            .await?;
+
+        // Check if request was successful
+        if !response.status().is_success() {
+            let status = response.status();
+            let response_text = response.text().await?;
+            return Err(RedditClientError::ApiError(format!(
+                "Failed to create comment: HTTP {}: {}",
+                status, response_text
+            )));
+        }
+
+        // Parse the response
+        let json: serde_json::Value = response.json().await?;
+        debug!("Comment creation response: {:?}", json);
+
+        // Check for API errors
+        if let Some(errors) = json["json"]["errors"].as_array() {
+            if !errors.is_empty() {
+                return Err(RedditClientError::ApiError(format!(
+                    "Reddit API returned an error: {:?}",
+                    errors
+                )));
+            }
+        }
+
+        // Check for user required error
+        if json.get("error").is_some() && json["error"].as_i64() == Some(403) {
+            return Err(RedditClientError::ApiError(
+                "Reddit requires user authentication with 'submit' scope to create comments. The current authentication method (application-only) only supports reading public data.".to_string()
+            ));
+        }
+
+        // Extract the comment ID and permalink if available
+        if let Some(things) = json["json"]["data"]["things"].as_array() {
+            if !things.is_empty() {
+                if let (Some(_), Some(permalink)) = (
+                    things[0]["data"]["name"].as_str(),
+                    things[0]["data"]["permalink"].as_str(),
+                ) {
+                    return Ok(format!("https://reddit.com{}", permalink));
+                }
+
+                // Fallback if permalink is not available
+                if let Some(thing_id) = things[0]["data"]["name"].as_str() {
+                    return Ok(format!(
+                        "Comment created successfully with ID: {}",
+                        thing_id
+                    ));
+                }
+            }
+        }
+
+        // For debugging purposes, print the entire response
+        debug!(
+            "Full comment response structure: {}",
+            serde_json::to_string_pretty(&json).unwrap_or_default()
+        );
+
+        // Fallback success message if we couldn't extract the details
+        Ok("Comment was created successfully, but couldn't extract the details".to_string())
+    }
 }

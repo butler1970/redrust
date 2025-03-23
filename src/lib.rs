@@ -1,7 +1,7 @@
 //! Redrust: A Rust wrapper for the Reddit API
 //!
 //! This library provides a convenient interface for interacting with the Reddit API,
-//! allowing you to fetch posts, create new posts, and more.
+//! allowing you to fetch posts, create new posts, add comments, and more.
 
 pub mod client;
 pub mod models;
@@ -14,6 +14,7 @@ pub use operations::api_create::{ApiCreateOperation, ApiCreateOptions, ApiCreate
 pub use operations::browser_create::{
     BrowserCreateOperation, BrowserCreateOptions, BrowserCreateResult,
 };
+pub use operations::comment::{CommentOperation, CommentOptions, CommentResult};
 pub use operations::create::{CreateOperation, CreateOptions, CreateResult};
 pub use operations::posts::{PostsOperation, PostsOptions, PostsResult};
 pub use operations::token_create::{TokenCreateOperation, TokenCreateOptions, TokenCreateResult};
