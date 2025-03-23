@@ -10,8 +10,6 @@ pub struct CreateOptions {
     pub title: String,
     /// Text content of the post
     pub text: String,
-    /// Reddit client ID for OAuth
-    pub client_id: String,
 }
 
 /// Result of a post creation operation
@@ -59,20 +57,7 @@ impl CreateOperation {
             display_sub, self.options.title
         );
 
-        // First get an access token
-        match self.client.get_access_token(&self.options.client_id).await {
-            Ok(_) => info!("Successfully authenticated with Reddit API"),
-            Err(err) => {
-                let message = format!("Failed to authenticate with Reddit API: {:?}", err);
-                error!("{}", message);
-
-                return Ok(CreateResult {
-                    success: false,
-                    post_url: None,
-                    message,
-                });
-            }
-        }
+        // Assume client is already configured with proper authentication
 
         // Now create the post
         match self
@@ -113,16 +98,44 @@ pub async fn handle_create_command(
     subreddit: String,
     title: String,
     text: String,
-    client_id: String,
 ) -> Result<(), crate::client::RedditClientError> {
     let options = CreateOptions {
         subreddit,
         title,
         text,
-        client_id,
     };
 
     let mut operation = CreateOperation::new(options);
+    match operation.execute().await {
+        Ok(result) => {
+            if result.success {
+                info!("{}", result.message);
+            } else {
+                error!("{}", result.message);
+            }
+            Ok(())
+        }
+        Err(err) => {
+            error!("Error executing create operation: {:?}", err);
+            Err(err)
+        }
+    }
+}
+
+/// CLI handler function for create command that accepts a preconfigured client
+pub async fn handle_create_command_with_client(
+    subreddit: String,
+    title: String,
+    text: String,
+    client: RedditClient,
+) -> Result<(), crate::client::RedditClientError> {
+    let options = CreateOptions {
+        subreddit,
+        title,
+        text,
+    };
+
+    let mut operation = CreateOperation::with_client(options, client);
     match operation.execute().await {
         Ok(result) => {
             if result.success {

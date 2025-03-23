@@ -14,9 +14,7 @@ pub struct PublicFeedData {
     pub after: Option<String>,
     #[serde(default)]
     pub dist: i32,
-    #[serde(default)]
-    pub modhash: String,
-    // geo_filter can be null in some responses
+    pub modhash: Option<String>,
     pub geo_filter: Option<String>,
     pub children: Vec<PublicFeedPostEntity>,
     pub before: Option<String>,

@@ -10,14 +10,6 @@ pub struct ApiCreateOptions {
     pub title: String,
     /// Text content of the post
     pub text: String,
-    /// Reddit client ID for OAuth
-    pub client_id: String,
-    /// Reddit client secret
-    pub client_secret: String,
-    /// Reddit username
-    pub username: String,
-    /// Reddit password
-    pub password: String,
 }
 
 /// Result of an API-authenticated post creation operation
@@ -61,35 +53,9 @@ impl ApiCreateOperation {
         };
 
         info!(
-            "Creating a new post in {} as {} using script app credentials: '{}'",
-            display_sub, self.options.username, self.options.title
+            "Creating a new post in {} using script app credentials: '{}'",
+            display_sub, self.options.title
         );
-
-        // Authenticate with API credentials
-        match self
-            .client
-            .authenticate_with_api_credentials(
-                &self.options.client_id,
-                &self.options.client_secret,
-                &self.options.username,
-                &self.options.password,
-            )
-            .await
-        {
-            Ok(_) => {
-                info!("Successfully authenticated with Reddit API using script app credentials")
-            }
-            Err(err) => {
-                let message = format!("Failed to authenticate with Reddit API: {:?}", err);
-                error!("{}", message);
-
-                return Ok(ApiCreateResult {
-                    success: false,
-                    post_url: None,
-                    message,
-                });
-            }
-        }
 
         // Now create the post
         match self
@@ -125,27 +91,20 @@ impl ApiCreateOperation {
     }
 }
 
-/// CLI handler function for api_create command
-pub async fn handle_api_create_command(
+/// CLI handler function for api_create command with client
+pub async fn handle_api_create_command_with_client(
     subreddit: String,
     title: String,
     text: String,
-    client_id: String,
-    client_secret: String,
-    username: String,
-    password: String,
+    client: RedditClient,
 ) -> Result<(), crate::client::RedditClientError> {
     let options = ApiCreateOptions {
         subreddit,
         title,
         text,
-        client_id,
-        client_secret,
-        username,
-        password,
     };
 
-    let mut operation = ApiCreateOperation::new(options);
+    let mut operation = ApiCreateOperation::with_client(options, client);
     match operation.execute().await {
         Ok(result) => {
             if result.success {

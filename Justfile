@@ -47,106 +47,100 @@ posts-named:
     cargo run -- posts --count {{count}} $([ -n "{{subreddit}}" ] && echo "--subreddit {{subreddit}}") $([ "{{brief}}" = "true" ] && echo "--brief")
 
 # Create a post with application-only authentication
-create subreddit title text client_id:
-    cargo run -- create "{{subreddit}}" "{{title}}" "{{text}}" "{{client_id}}"
+create subreddit title text:
+    cargo run -- create "{{subreddit}}" "{{title}}" "{{text}}"
 
 # Create a post with application-only authentication using named parameters
 create-named:
-    cargo run -- create "{{subreddit}}" "{{title}}" "{{text}}" "{{client_id}}"
+    cargo run -- create "{{subreddit}}" "{{title}}" "{{text}}"
 
 # Create a post with user authentication (username/password)
-user-create subreddit title text client_id username password:
-    cargo run -- user-create "{{subreddit}}" "{{title}}" "{{text}}" "{{client_id}}" "{{username}}" "{{password}}"
+user-create subreddit title text:
+    cargo run -- user-create "{{subreddit}}" "{{title}}" "{{text}}"
 
 # Create a post with user authentication using named parameters
 user-create-named:
-    cargo run -- user-create "{{subreddit}}" "{{title}}" "{{text}}" "{{client_id}}" "{{username}}" "{{password}}"
+    cargo run -- user-create "{{subreddit}}" "{{title}}" "{{text}}"
 
 # Create a post with browser-based OAuth authentication
-browser-create subreddit title text client_id port='':
+browser-create subreddit title text port='':
     #!/usr/bin/env bash
-    cargo run -- browser-create "{{subreddit}}" "{{title}}" "{{text}}" "{{client_id}}" $([ -n "{{port}}" ] && echo "--port {{port}}")
+    cargo run -- browser-create "{{subreddit}}" "{{title}}" "{{text}}" $([ -n "{{port}}" ] && echo "--port {{port}}")
 
 # Create a post with browser-based OAuth authentication using named parameters
 browser-create-named:
     #!/usr/bin/env bash
-    cargo run -- browser-create "{{subreddit}}" "{{title}}" "{{text}}" "{{client_id}}" $([ -n "{{port}}" ] && echo "--port {{port}}")
+    cargo run -- browser-create "{{subreddit}}" "{{title}}" "{{text}}" $([ -n "{{port}}" ] && echo "--port {{port}}")
 
 # Create a post with manual OAuth tokens
-token-create subreddit title text client_id access_token refresh_token='' expires_in='3600':
+token-create subreddit title text expires_in='3600':
     #!/usr/bin/env bash
-    cargo run -- token-create "{{subreddit}}" "{{title}}" "{{text}}" "{{client_id}}" "{{access_token}}" $([ -n "{{refresh_token}}" ] && echo "{{refresh_token}}") --expires-in {{expires_in}}
+    cargo run -- token-create "{{subreddit}}" "{{title}}" "{{text}}" --expires-in {{expires_in}}
 
 # Create a post with manual OAuth tokens using named parameters
 token-create-named:
     #!/usr/bin/env bash
-    cargo run -- token-create "{{subreddit}}" "{{title}}" "{{text}}" "{{client_id}}" "{{access_token}}" $([ -n "{{refresh_token}}" ] && echo "{{refresh_token}}") --expires-in {{expires_in}}
+    cargo run -- token-create "{{subreddit}}" "{{title}}" "{{text}}" --expires-in {{expires_in}}
 
 # Create a post with script application API credentials
-api-create subreddit title text client_id client_secret username password:
-    cargo run -- api-create "{{subreddit}}" "{{title}}" "{{text}}" "{{client_id}}" "{{client_secret}}" "{{username}}" "{{password}}"
+api-create subreddit title text:
+    cargo run -- api-create "{{subreddit}}" "{{title}}" "{{text}}"
 
 # Create a post with script application API credentials using named parameters
 api-create-named:
-    cargo run -- api-create "{{subreddit}}" "{{title}}" "{{text}}" "{{client_id}}" "{{client_secret}}" "{{username}}" "{{password}}"
+    cargo run -- api-create "{{subreddit}}" "{{title}}" "{{text}}"
 
 # Create a comment on a post or another comment (basic method)
-comment thing_id text client_id:
+comment thing_id text:
     #!/usr/bin/env bash
     # Disable history expansion to prevent ! interpretation
     set +H
-    cargo run -- comment "{{thing_id}}" "{{text}}" "{{client_id}}"
+    cargo run -- comment "{{thing_id}}" "{{text}}"
 
 # Create a comment using named parameters
 comment-named:
     #!/usr/bin/env bash
     # Disable history expansion to prevent ! interpretation
     set +H
-    cargo run -- comment "{{thing_id}}" "{{text}}" "{{client_id}}"
+    cargo run -- comment "{{thing_id}}" "{{text}}"
 
 # Create a comment with browser-based OAuth authentication
-browser-comment thing_id text client_id port='':
+browser-comment thing_id text port='':
     #!/usr/bin/env bash
     # Disable history expansion to prevent ! interpretation
     set +H
-    cargo run -- browser-comment "{{thing_id}}" "{{text}}" "{{client_id}}" $([ -n "{{port}}" ] && echo "--port {{port}}")
+    cargo run -- browser-comment "{{thing_id}}" "{{text}}" $([ -n "{{port}}" ] && echo "--port {{port}}")
 
 # Create a comment with browser-based OAuth authentication using named parameters
 browser-comment-named:
     #!/usr/bin/env bash
     # Disable history expansion to prevent ! interpretation
     set +H
-    cargo run -- browser-comment "{{thing_id}}" "{{text}}" "{{client_id}}" $([ -n "{{port}}" ] && echo "--port {{port}}")
+    cargo run -- browser-comment "{{thing_id}}" "{{text}}" $([ -n "{{port}}" ] && echo "--port {{port}}")
 
 # Create a comment with user authentication (username/password)
-user-comment thing_id text client_id username password:
+user-comment thing_id text:
     #!/usr/bin/env bash
     # Disable history expansion to prevent ! interpretation
     set +H
-    cargo run -- user-comment "{{thing_id}}" "{{text}}" "{{client_id}}" "{{username}}" "{{password}}"
+    cargo run -- user-comment "{{thing_id}}" "{{text}}"
 
 # Create a comment with user authentication using named parameters
 user-comment-named:
     #!/usr/bin/env bash
     # Disable history expansion to prevent ! interpretation
     set +H
-    cargo run -- user-comment "{{thing_id}}" "{{text}}" "{{client_id}}" "{{username}}" "{{password}}"
+    cargo run -- user-comment "{{thing_id}}" "{{text}}"
 
-# Set default values for named parameter commands, reading from environment variables when available
+# Set default values for named parameter commands
 count := "10"
 subreddit := ""
 brief := "false"
 title := ""
 text := ""
-thing_id := env_var_or_default("REDDIT_THING_ID", "")
-client_id := env_var_or_default("REDDIT_CLIENT_ID", "")
-username := env_var_or_default("REDDIT_USERNAME", "")
-password := env_var_or_default("REDDIT_PASSWORD", "")
-port := env_var_or_default("REDDIT_OAUTH_PORT", "")
-access_token := env_var_or_default("REDDIT_ACCESS_TOKEN", "")
-refresh_token := env_var_or_default("REDDIT_REFRESH_TOKEN", "")
-expires_in := env_var_or_default("REDDIT_TOKEN_EXPIRES_IN", "3600")
-client_secret := env_var_or_default("REDDIT_CLIENT_SECRET", "")
+thing_id := ""
+port := ""
+expires_in := "3600"
 
 # Examples:
 # Get 5 posts from r/rust in brief format
@@ -163,7 +157,7 @@ example-named-parameters:
     
 # Example of creating post with browser auth using named parameters
 example-browser-create-named:
-    just subreddit=rust title="Testing Named Parameters" text="This post was created using Justs named parameters" client_id=YOUR_CLIENT_ID browser-create-named
+    just subreddit=alt2gofundme title="Testing Named Parameters" text="This post was created using Justs named parameters" browser-create-named
 
 # Example of creating a comment with browser auth
 example-browser-comment:
