@@ -51,18 +51,21 @@ impl CommentOperation {
             self.options.thing_id
         );
 
-        // First get an access token
-        match self.client.get_access_token(&self.options.client_id).await {
-            Ok(_) => info!("Successfully authenticated with Reddit API"),
-            Err(err) => {
-                let message = format!("Failed to authenticate with Reddit API: {:?}", err);
-                error!("{}", message);
+        // Check if we already have a valid token (from browser_comment_command or user_comment_command)
+        // Only try to get a new token if we don't already have one
+        if self.client.access_token.is_none() {
+            match self.client.get_access_token(&self.options.client_id).await {
+                Ok(_) => info!("Successfully authenticated with Reddit API"),
+                Err(err) => {
+                    let message = format!("Failed to authenticate with Reddit API: {:?}", err);
+                    error!("{}", message);
 
-                return Ok(CommentResult {
-                    success: false,
-                    comment_url: None,
-                    message,
-                });
+                    return Ok(CommentResult {
+                        success: false,
+                        comment_url: None,
+                        message,
+                    });
+                }
             }
         }
 
@@ -153,9 +156,9 @@ pub async fn handle_browser_comment_command(
         .await
     {
         Ok(_) => {
-            info!("Successfully authenticated with Reddit API via browser OAuth");
+            info!("Successfully authenticated with Reddit API via browser OAuth (with 'submit' scope)");
 
-            // Now that we have an authenticated client, create the comment
+            // Now that we have an authenticated client with proper scopes, create the comment
             let mut operation = CommentOperation::with_client(options, client);
             match operation.execute().await {
                 Ok(result) => {
@@ -204,9 +207,9 @@ pub async fn handle_user_comment_command(
         .await
     {
         Ok(_) => {
-            info!("Successfully authenticated with Reddit API using username/password");
+            info!("Successfully authenticated with Reddit API using username/password (with 'submit' scope)");
 
-            // Now that we have an authenticated client, create the comment
+            // Now that we have an authenticated client with proper scopes, create the comment
             let mut operation = CommentOperation::with_client(options, client);
             match operation.execute().await {
                 Ok(result) => {
